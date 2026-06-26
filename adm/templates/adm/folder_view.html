@@ -1,0 +1,186 @@
+{% extends 'adm/base.html' %}
+
+{% block title %}{{ folder.name }}{% endblock %}
+
+{% block extra_css %}
+.item-card {
+    background: white;
+    border-radius: 16px;
+    padding: 22px 15px;
+    text-align: center;
+    cursor: pointer;
+    border: 1px solid var(--card-border);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.item-icon {
+    height: 75px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 54px;
+    margin-bottom: 10px;
+    transition: transform 0.25s ease;
+}
+
+.item-card:hover .item-icon {
+    transform: scale(1.08);
+}
+
+.folder-icon {
+    color: #f4b400;
+}
+
+.file-icon {
+    color: #7f8c8d;
+}
+
+.file-thumb {
+    max-height: 75px;
+    max-width: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.item-name {
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: .2px;
+    color: #2c3e50;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+    height: 36px;
+    margin-top: 10px;
+}
+{% endblock %}
+
+{% block content %}
+<!-- Page Header / Navigation -->
+<div class="page-header-block">
+    <div class="d-flex align-items-center gap-3">
+        <a href="{% if folder.parent_folder %}/folder/{{ folder.parent_folder.id }}/{% else %}/{% endif %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+            <i class="bi bi-arrow-left me-1"></i> Back
+        </a>
+        <h5 class="page-header-title">
+            <i class="bi bi-folder2-open text-warning me-1"></i>
+            <span>{{ folder.name }}</span>
+        </h5>
+    </div>
+    <span class="badge bg-secondary px-3 py-2 rounded-pill">
+        {{ sub_folders|length }} Folder{{ sub_folders|pluralize }} &bull; {{ files|length }} File{{ files|pluralize }}
+    </span>
+</div>
+
+<!-- Folder & Files Grid -->
+<div class="row g-4">
+
+    <!-- FOLDERS -->
+    {% for sub in sub_folders %}
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+        <div class="item-card folder-card card-transition" data-id="{{ sub.id }}">
+            <div class="item-icon folder-icon">
+                <i class="bi bi-folder-fill"></i>
+            </div>
+            <div class="item-name" title="{{ sub.name }}">{{ sub.name }}</div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- FILES -->
+    {% for file_inst in files %}
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+        <div class="item-card file-card card-transition" data-url="{{ file_inst.file.url }}"
+            data-name="{{ file_inst.file.name }}">
+
+            <div class="item-icon file-icon preview-container">
+                <i class="bi bi-file-earmark-fill"></i>
+            </div>
+
+            <!-- Remove upload folder prefix from the displayed file name -->
+            <div class="item-name" title="{{ file_inst.file.name|cut:'uploads/' }}">
+                {{ file_inst.file.name|cut:"uploads/" }}
+            </div>
+
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Empty State -->
+    {% if not sub_folders and not files %}
+    <div class="col-12">
+        <div class="text-center py-5 bg-white rounded-4 border border-1 border-light-subtle">
+            <i class="bi bi-folder-x text-muted" style="font-size: 3.5rem;"></i>
+            <h5 class="mt-3 text-secondary">Empty Directory</h5>
+            <p class="text-muted small">This directory does not contain any folders or files yet.</p>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Folder navigation
+    $(document).on("click", ".folder-card", function () {
+        let id = $(this).data("id");
+        window.location.href = "/folder/" + id + "/";
+    });
+
+    // File open
+    $(document).on("click", ".file-card", function () {
+        let url = $(this).data("url");
+        window.open(url, "_blank");
+    });
+
+    function isImage(name) {
+        name = name.toLowerCase();
+        return name.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/);
+    }
+
+    function getFileIcon(name) {
+        name = name.toLowerCase();
+
+        if (name.match(/\.(pdf)$/)) return "bi-file-pdf-fill text-danger";
+        if (name.match(/\.(doc|docx)$/)) return "bi-file-word-fill text-primary";
+        if (name.match(/\.(xls|xlsx|csv)$/)) return "bi-file-excel-fill text-success";
+        if (name.match(/\.(ppt|pptx)$/)) return "bi-file-ppt-fill text-warning";
+        if (name.match(/\.(zip|rar|7z)$/)) return "bi-file-zip-fill text-warning";
+        if (name.match(/\.(txt)$/)) return "bi-file-text-fill text-secondary";
+        if (name.match(/\.(mp4|avi|mov|mkv)$/)) return "bi-file-play-fill text-info";
+        if (name.match(/\.(mp3|wav)$/)) return "bi-file-music-fill text-info";
+
+        return "bi-file-earmark-fill text-secondary";
+    }
+
+    // Apply preview thumbnail or custom colored icon
+    $(".file-card").each(function () {
+        let name = $(this).data("name");
+        let url = $(this).data("url");
+        let container = $(this).find(".preview-container");
+
+        // IMAGE THUMBNAIL
+        if (isImage(name)) {
+            container.html(
+                `<img src="${url}" class="file-thumb">`
+            );
+        }
+        // FILE ICON WITH SPECIFIC CLASS
+        else {
+            let iconClass = getFileIcon(name);
+            container.html(
+                `<i class="bi ${iconClass}"></i>`
+            );
+        }
+    });
+</script>
+{% endblock %}

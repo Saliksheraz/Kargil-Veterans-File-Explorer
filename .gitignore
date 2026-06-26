@@ -1,0 +1,28 @@
+# Database files
+db.sqlite3
+*.sqlite3
+*.sql
+*.sqlite
+
+# Media uploads
+media/
+media/*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+
+# IDEs/Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

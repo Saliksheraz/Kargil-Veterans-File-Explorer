@@ -1,0 +1,78 @@
+{% extends 'adm/base.html' %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block extra_css %}
+.folder-card {
+    background: white;
+    border-radius: 16px;
+    padding: 28px 15px;
+    text-align: center;
+    cursor: pointer;
+    border: 1px solid var(--card-border);
+}
+
+.folder-icon {
+    font-size: 54px;
+    color: #f4b400;
+    transition: transform 0.25s ease;
+}
+
+.folder-card:hover .folder-icon {
+    transform: scale(1.1);
+}
+
+.folder-name {
+    margin-top: 12px;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: .2px;
+    color: #2c3e50;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+{% endblock %}
+
+{% block content %}
+<!-- Page Header / Toolbar -->
+<div class="page-header-block">
+    <h5 class="page-header-title">
+        <i class="bi bi-grid-fill"></i>
+        <span>Root Directories</span>
+    </h5>
+    <span class="badge bg-secondary px-3 py-2 rounded-pill">{{ folders|length }} Folder{{ folders|pluralize }}</span>
+</div>
+
+<!-- Folders Grid -->
+<div class="row g-4">
+    {% for folder in folders %}
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+        <div class="folder-card card-transition" data-name="{{ folder.name }}" data-id="{{ folder.id }}">
+            <div class="folder-icon">
+                <i class="bi bi-folder-fill"></i>
+            </div>
+            <div class="folder-name" title="{{ folder.name }}">{{ folder.name }}</div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="text-center py-5 bg-white rounded-4 border border-1 border-light-subtle">
+            <i class="bi bi-folder2-open text-muted" style="font-size: 3.5rem;"></i>
+            <h5 class="mt-3 text-secondary">No Directories Found</h5>
+            <p class="text-muted small">There are no folders configured in the root directory yet.</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Navigate to /folder/id/
+    $(document).on("click", ".folder-card", function () {
+        let id = $(this).data("id");
+        window.location.href = "/folder/" + id + "/";
+    });
+</script>
+{% endblock %}
