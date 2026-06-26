@@ -14,6 +14,7 @@
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    position: relative;
 }
 
 .item-icon {
@@ -60,6 +61,37 @@
     line-height: 1.4;
     height: 36px;
     margin-top: 10px;
+}
+
+/* Delete Button */
+.delete-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    opacity: 0;
+    z-index: 10;
+}
+
+.item-card:hover .delete-btn {
+    opacity: 1;
+}
+
+.delete-btn:hover {
+    background-color: #dc3545;
+    color: #ffffff;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
 }
 
 /* Button styles */
@@ -119,6 +151,12 @@
     {% for sub in sub_folders %}
     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
         <div class="item-card folder-card card-transition" data-id="{{ sub.id }}">
+            <form method="post" action="{% url 'delete_folder' sub.id %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="delete-btn" onclick="return confirmDelete(event, 'folder');" title="Delete Folder">
+                    <i class="bi bi-trash-fill"></i>
+                </button>
+            </form>
             <div class="item-icon folder-icon">
                 <i class="bi bi-folder-fill"></i>
             </div>
@@ -132,6 +170,12 @@
     <div class="col-6 col-sm-4 col-md-3 col-lg-2">
         <div class="item-card file-card card-transition" data-url="{{ file_inst.file.url }}"
             data-name="{{ file_inst.file.name }}">
+            <form method="post" action="{% url 'delete_file' file_inst.id %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="delete-btn" onclick="return confirmDelete(event, 'file');" title="Delete File">
+                    <i class="bi bi-trash-fill"></i>
+                </button>
+            </form>
 
             <div class="item-icon file-icon preview-container">
                 <i class="bi bi-file-earmark-fill"></i>
@@ -229,6 +273,11 @@
         let url = $(this).data("url");
         window.open(url, "_blank");
     });
+
+    function confirmDelete(event, type) {
+        event.stopPropagation();
+        return confirm("Are you sure you want to delete this " + type + "?");
+    }
 
     function isImage(name) {
         name = name.toLowerCase();

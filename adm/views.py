@@ -67,3 +67,33 @@ def upload_file(request):
             return redirect(f"/folder/{folder.id}/")
         return redirect("/")
     return redirect("/")
+
+@login_required
+def delete_folder(request, pk):
+    if request.method == "POST":
+        try:
+            folder = Folders.objects.get(id=pk)
+            parent = folder.parent_folder
+            folder.delete()
+            if parent:
+                return redirect(f"/folder/{parent.id}/")
+            return redirect("/")
+        except Folders.DoesNotExist:
+            pass
+    return redirect("/")
+
+@login_required
+def delete_file(request, pk):
+    if request.method == "POST":
+        try:
+            file_inst = Files.objects.get(id=pk)
+            folder = file_inst.folder
+            if file_inst.file:
+                file_inst.file.delete(save=False)
+            file_inst.delete()
+            if folder:
+                return redirect(f"/folder/{folder.id}/")
+            return redirect("/")
+        except Files.DoesNotExist:
+            pass
+    return redirect("/")
