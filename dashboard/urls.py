@@ -18,7 +18,7 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include
-from adm.views import index, folder_view
+from adm.views import index, folder_view, create_folder, upload_file
 from django.conf.urls.static import static
 from django.conf import settings
 
@@ -27,5 +27,7 @@ urlpatterns = [
     path('', include('users.urls')),
     path('', index),
     path('folder/<int:pk>/', folder_view),
+    path('create-folder/', create_folder, name='create_folder'),
+    path('upload-file/', upload_file, name='upload_file'),
 ]
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

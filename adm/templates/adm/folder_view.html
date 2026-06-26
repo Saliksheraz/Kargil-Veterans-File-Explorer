@@ -61,11 +61,25 @@
     height: 36px;
     margin-top: 10px;
 }
+
+/* Button styles */
+.btn-gold-action {
+    background-color: var(--primary-gold);
+    color: #121e18;
+    border: none;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.btn-gold-action:hover {
+    background-color: var(--primary-gold-hover);
+    color: #121e18;
+}
 {% endblock %}
 
 {% block content %}
 <!-- Page Header / Navigation -->
-<div class="page-header-block">
+<div class="page-header-block d-flex justify-content-between align-items-center flex-wrap gap-3">
     <div class="d-flex align-items-center gap-3">
         <a href="{% if folder.parent_folder %}/folder/{{ folder.parent_folder.id }}/{% else %}/{% endif %}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
             <i class="bi bi-arrow-left me-1"></i> Back
@@ -75,9 +89,18 @@
             <span>{{ folder.name }}</span>
         </h5>
     </div>
-    <span class="badge bg-secondary px-3 py-2 rounded-pill">
-        {{ sub_folders|length }} Folder{{ sub_folders|pluralize }} &bull; {{ files|length }} File{{ files|pluralize }}
-    </span>
+    
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-success btn-sm rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#createFolderModal">
+            <i class="bi bi-folder-plus me-1"></i> New Folder
+        </button>
+        <button class="btn btn-gold-action btn-sm rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#uploadFileModal">
+            <i class="bi bi-cloud-upload me-1"></i> Upload File
+        </button>
+        <span class="badge bg-secondary px-3 py-2 rounded-pill ms-2">
+            {{ sub_folders|length }} Folder{{ sub_folders|pluralize }} &bull; {{ files|length }} File{{ files|pluralize }}
+        </span>
+    </div>
 </div>
 
 <!-- Folder & Files Grid -->
@@ -125,6 +148,62 @@
     </div>
     {% endif %}
 
+</div>
+
+<!-- Create Folder Modal -->
+<div class="modal fade" id="createFolderModal" tabindex="-1" aria-labelledby="createFolderModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header" style="background-color: var(--army-green); color: white; border-top-left-radius: 15px; border-top-right-radius: 15px;">
+                <h5 class="modal-title" id="createFolderModalLabel">
+                    <i class="bi bi-folder-plus me-2"></i>Create New Folder
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'create_folder' %}">
+                {% csrf_token %}
+                <div class="modal-body py-4">
+                    <input type="hidden" name="parent_folder_id" value="{{ folder.id }}">
+                    <div class="mb-3">
+                        <label for="folderName" class="form-label font-weight-bold" style="font-weight: 600;">Folder Name</label>
+                        <input type="text" class="form-control" id="folderName" name="name" required placeholder="Enter folder name" autofocus>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-outline-secondary px-4 rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-gold-action px-4 rounded-pill">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Upload File Modal -->
+<div class="modal fade" id="uploadFileModal" tabindex="-1" aria-labelledby="uploadFileModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header" style="background-color: var(--army-green); color: white; border-top-left-radius: 15px; border-top-right-radius: 15px;">
+                <h5 class="modal-title" id="uploadFileModalLabel">
+                    <i class="bi bi-cloud-upload me-2"></i>Upload File
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'upload_file' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-body py-4">
+                    <input type="hidden" name="folder_id" value="{{ folder.id }}">
+                    <div class="mb-3">
+                        <label for="formFile" class="form-label font-weight-bold" style="font-weight: 600;">Select File</label>
+                        <input class="form-control" type="file" id="formFile" name="file" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-outline-secondary px-4 rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-gold-action px-4 rounded-pill">Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
