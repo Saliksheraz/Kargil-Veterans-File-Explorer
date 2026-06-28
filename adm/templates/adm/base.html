@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -29,7 +30,8 @@
 
         body {
             font-family: 'Outfit', sans-serif;
-            background: var(--body-bg);
+            background: linear-gradient(rgba(244, 246, 249, 0.45), rgba(244, 246, 249, 0.45)), url("{% static 'users/images/soldiers_bg.png' %}") no-repeat center center fixed;
+            background-size: cover;
             color: #333333;
             min-height: 100vh;
             display: flex;
@@ -138,7 +140,9 @@
 
         /* Toolbar / Page Header block */
         .page-header-block {
-            background: white;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             padding: 20px 25px;
             border-radius: 16px;
             margin-bottom: 30px;
@@ -163,7 +167,9 @@
         /* Footer styling */
         .footer-custom {
             margin-top: auto;
-            background-color: #ffffff;
+            background-color: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             border-top: 1px solid var(--card-border);
             padding: 20px 0;
             color: #777777;
