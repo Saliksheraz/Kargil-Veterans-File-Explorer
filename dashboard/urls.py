@@ -18,7 +18,7 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include
-from adm.views import index, folder_view, create_folder, upload_file, delete_folder, delete_file
+from adm.views import index, folder_view, create_folder, upload_file, delete_folder, delete_file, update_folder
 from django.conf.urls.static import static
 from django.conf import settings
 
@@ -28,6 +28,7 @@ urlpatterns = [
     path('', index),
     path('folder/<int:pk>/', folder_view),
     path('create-folder/', create_folder, name='create_folder'),
+    path('update-folder/<int:pk>/', update_folder, name='update_folder'),
     path('upload-file/', upload_file, name='upload_file'),
     path('delete-folder/<int:pk>/', delete_folder, name='delete_folder'),
     path('delete-file/<int:pk>/', delete_file, name='delete_file'),

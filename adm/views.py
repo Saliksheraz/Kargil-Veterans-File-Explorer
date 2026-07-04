@@ -21,11 +21,14 @@ def folder_view(request, pk):
         breadcrumbs.insert(0, curr)
         curr = curr.parent_folder
         
+    custom_bg = folder.image.url if folder.image else None
+
     return render(request, "adm/folder_view.html", {
         "sub_folders": sub_folders, 
         "files": files, 
         "folder": folder,
-        "breadcrumbs": breadcrumbs
+        "breadcrumbs": breadcrumbs,
+        "custom_bg": custom_bg
     })
 
 @login_required
@@ -41,7 +44,8 @@ def create_folder(request):
             except Folders.DoesNotExist:
                 parent_folder = None
                 
-        Folders.objects.create(name=name, parent_folder=parent_folder)
+        image_obj = request.FILES.get("image")
+        Folders.objects.create(name=name, parent_folder=parent_folder, image=image_obj)
         
         if parent_folder:
             return redirect(f"/folder/{parent_folder.id}/")
@@ -66,6 +70,29 @@ def upload_file(request):
         if folder:
             return redirect(f"/folder/{folder.id}/")
         return redirect("/")
+    return redirect("/")
+
+@login_required
+def update_folder(request, pk):
+    if request.method == "POST":
+        try:
+            folder = Folders.objects.get(id=pk)
+            name = request.POST.get("name")
+            if name:
+                folder.name = name
+            
+            image_obj = request.FILES.get("image")
+            if image_obj:
+                folder.image = image_obj
+            
+            # Optionally clear image if a specific flag is passed, but UI might not have it yet.
+            folder.save()
+            
+            if folder.parent_folder:
+                return redirect(f"/folder/{folder.parent_folder.id}/")
+            return redirect("/")
+        except Folders.DoesNotExist:
+            pass
     return redirect("/")
 
 @login_required
