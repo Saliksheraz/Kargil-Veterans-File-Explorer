@@ -9,6 +9,7 @@ class Folders(models.Model):
     name = models.CharField(max_length=200, null=True, blank=True)
     image = models.ImageField(upload_to="folder_images", null=True, blank=True)
     thumbnail = models.ImageField(upload_to="folder_thumbnails", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         # We only generate a thumbnail if there's an image and no thumbnail yet, or if you want to force it.
@@ -35,12 +36,69 @@ class Folders(models.Model):
             
         super().save(*args, **kwargs)
 
+    @property
+    def file_count(self):
+        # Count direct files and files in subfolders recursively
+        direct_files = self.files_set.count()
+        subfolders_files = sum(sub.file_count for sub in Folders.objects.filter(parent_folder=self))
+        return direct_files + subfolders_files
+
+    @property
+    def total_size(self):
+        total = 0
+        for f in self.files_set.all():
+            if f.file:
+                try:
+                    total += f.file.size
+                except Exception:
+                    pass
+        for sub in Folders.objects.filter(parent_folder=self):
+            total += sub.total_size
+        return total
+
+    @property
+    def total_size_formatted(self):
+        size = self.total_size
+        return self._format_size(size)
+
+    def _format_size(self, size_bytes):
+        if size_bytes == 0:
+            return "0 B"
+        import math
+        size_name = ("B", "KB", "MB", "GB", "TB")
+        i = int(math.floor(math.log(size_bytes, 1024)))
+        p = math.pow(1024, i)
+        s = round(size_bytes / p, 2)
+        return f"{s} {size_name[i]}"
+
     def __str__(self):
         return str(self.name)
 
 class Files(models.Model):
     folder = models.ForeignKey(Folders, on_delete=models.CASCADE, null=True, blank=True)
     file = models.FileField(null=True, blank=True, upload_to="files")
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+
+    @property
+    def file_size(self):
+        if self.file:
+            try:
+                return self.file.size
+            except Exception:
+                return 0
+        return 0
+
+    @property
+    def file_size_formatted(self):
+        size = self.file_size
+        if size == 0:
+            return "0 B"
+        import math
+        size_name = ("B", "KB", "MB", "GB", "TB")
+        i = int(math.floor(math.log(size, 1024)))
+        p = math.pow(1024, i)
+        s = round(size / p, 2)
+        return f"{s} {size_name[i]}"
 
     def __str__(self):
         return f"{self.folder.name if self.folder else ''} {self.file.name if self.file else ''}"

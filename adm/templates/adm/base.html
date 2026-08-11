@@ -33,7 +33,7 @@
             {% if custom_bg %}
             background: linear-gradient(rgba(244, 246, 249, 0.55), rgba(244, 246, 249, 0.55)), url("{{ custom_bg }}") no-repeat center center fixed;
             {% else %}
-            background: linear-gradient(rgba(244, 246, 249, 0.45), rgba(244, 246, 249, 0.45)), url("{% static 'users/images/dashboard_bg_new.png' %}") no-repeat center center fixed;
+            background: linear-gradient(rgba(244, 246, 249, 0.45), rgba(244, 246, 249, 0.45)), url("{% static 'users/images/bg.jpeg' %}") no-repeat center center fixed;
             {% endif %}
             background-size: cover;
             color: #333333;
@@ -231,7 +231,7 @@
     </nav>
 
     <!-- Main Container -->
-    <div class="container py-4 my-2">
+    <div class="container-fluid px-3 px-md-5 py-4 my-2">
         {% block content %}{% endblock %}
     </div>
 
