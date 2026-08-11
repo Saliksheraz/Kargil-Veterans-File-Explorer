@@ -406,7 +406,7 @@
             <i class="bi bi-folder-plus me-1"></i> New Folder
         </button>
         <button class="btn btn-gold-action btn-sm rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#uploadFileModal">
-            <i class="bi bi-cloud-upload me-1"></i> Upload File
+            <i class="bi bi-cloud-upload me-1"></i> Upload Files
         </button>
         <span class="badge bg-secondary px-3 py-2 rounded-pill ms-2">
             {{ folders|length }} Folder{{ folders|pluralize }} &bull; {{ files|length }} File{{ files|pluralize }}
@@ -433,7 +433,7 @@
         <!-- FOLDERS -->
         {% for folder in folders %}
         <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-            <div class="folder-card card-transition" data-name="{{ folder.name }}" data-id="{{ folder.id }}">
+            <div class="folder-card card-transition" data-name="{{ folder.name }}" data-id="{{ folder.id }}" data-files-json="{{ folder.all_files_json }}">
                 <form method="post" action="{% url 'delete_folder' folder.id %}" class="d-inline">
                     {% csrf_token %}
                     <button type="submit" class="delete-btn" onclick="return confirmDelete(event, 'folder');" title="Delete Folder">
@@ -461,7 +461,7 @@
         {% for file_inst in files %}
         <div class="col-6 col-sm-4 col-md-3 col-lg-2">
             <div class="item-card file-card card-transition" data-url="{{ file_inst.file.url }}"
-                data-name="{{ file_inst.file.name }}">
+                data-name="{{ file_inst.file.name }}" data-size="{{ file_inst.file_size_formatted }}">
                 <form method="post" action="{% url 'delete_file' file_inst.id %}" class="d-inline">
                     {% csrf_token %}
                     <button type="submit" class="delete-btn" onclick="return confirmDelete(event, 'file');" title="Delete File">
@@ -499,7 +499,7 @@
             <tbody id="details-table-body">
                 <!-- FOLDERS -->
                 {% for folder in folders %}
-                <tr class="details-folder-row" data-id="{{ folder.id }}" data-name="{{ folder.name }}" data-type="Folder" data-size="{{ folder.total_size }}" data-files="{{ folder.file_count }}" data-created="{{ folder.created_at|date:'Y-m-d H:i:s' }}">
+                <tr class="details-folder-row" data-id="{{ folder.id }}" data-name="{{ folder.name }}" data-type="Folder" data-size="{{ folder.total_size }}" data-files="{{ folder.file_count }}" data-created="{{ folder.created_at|date:'Y-m-d H:i:s' }}" data-files-json="{{ folder.all_files_json }}">
                     <td class="text-start">
                         <div class="details-table-name-wrapper">
                             <div class="details-table-icon">
@@ -534,7 +534,7 @@
 
                 <!-- FILES -->
                 {% for file_inst in files %}
-                <tr class="details-file-row" data-url="{{ file_inst.file.url }}" data-name="{{ file_inst.file.name|cut:'uploads/' }}" data-type="{{ file_inst.file.name|slice:'-4:'|lower }}" data-size="{{ file_inst.file_size }}" data-files="-1" data-created="{{ file_inst.created_at|date:'Y-m-d H:i:s' }}">
+                <tr class="details-file-row" data-url="{{ file_inst.file.url }}" data-name="{{ file_inst.file.name|cut:'uploads/' }}" data-type="{{ file_inst.file.name|slice:'-4:'|lower }}" data-size="{{ file_inst.file_size }}" data-size-formatted="{{ file_inst.file_size_formatted }}" data-files="-1" data-created="{{ file_inst.created_at|date:'Y-m-d H:i:s' }}">
                     <td class="text-start">
                         <div class="details-table-name-wrapper">
                             <div class="details-table-icon table-file-preview-container" data-name="{{ file_inst.file.name }}" data-url="{{ file_inst.file.url }}">
@@ -630,26 +630,73 @@
 
 <!-- Upload File Modal -->
 <div class="modal fade" id="uploadFileModal" tabindex="-1" aria-labelledby="uploadFileModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 rounded-4 shadow">
             <div class="modal-header" style="background-color: var(--army-green); color: white; border-top-left-radius: 15px; border-top-right-radius: 15px;">
                 <h5 class="modal-title" id="uploadFileModalLabel">
-                    <i class="bi bi-cloud-upload me-2"></i>Upload File
+                    <i class="bi bi-cloud-upload me-2"></i>Upload Files
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="{% url 'upload_file' %}" enctype="multipart/form-data">
+            <form id="uploadFileForm" method="post" action="{% url 'upload_file' %}" enctype="multipart/form-data">
                 {% csrf_token %}
-                <div class="modal-body py-4">
-                    <input type="hidden" name="folder_id" value="">
-                    <div class="mb-3">
-                        <label for="formFile" class="form-label font-weight-bold" style="font-weight: 600;">Select File</label>
-                        <input class="form-control" type="file" id="formFile" name="file" required>
+                <div class="modal-body py-4 px-4">
+                    <input type="hidden" name="folder_id" id="uploadFolderId" value="">
+                    
+                    <!-- Destination Folder Badge -->
+                    <div class="d-flex align-items-center justify-content-between mb-3 px-1">
+                        <span class="text-muted extra-small fw-bold">Upload Destination:</span>
+                        <span id="uploadDestinationBadge" class="badge bg-warning text-dark font-monospace extra-small px-2 py-1">
+                            <i class="bi bi-folder-fill me-1"></i> Home
+                        </span>
+                    </div>
+                    
+                    <!-- Drag & Drop Zone -->
+                    <div id="uploadDropzone" class="border border-2 border-dashed rounded-4 p-4 text-center mb-3 bg-light position-relative" style="border-color: var(--primary-gold) !important; cursor: pointer; transition: all 0.25s ease;">
+                        <input class="position-absolute top-0 start-0 w-100 h-100 opacity-0" type="file" id="formFile" name="files" multiple style="cursor: pointer; z-index: 2;">
+                        <div class="py-2">
+                            <i class="bi bi-cloud-arrow-up display-4 text-warning mb-2 d-block"></i>
+                            <h6 class="fw-bold text-dark mb-1">Drag & Drop files here or <span class="text-primary text-decoration-underline">Browse</span></h6>
+                            <p class="text-muted extra-small mb-0">Select single or multiple files (Images, PDFs, Documents, Videos, Audio, Archives)</p>
+                        </div>
+                    </div>
+
+                    <!-- Selected Files List & Summary Container -->
+                    <div id="uploadFilePreviewCard" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                            <span class="fw-bold text-dark small" id="selectedFilesSummary">0 Files Selected</span>
+                            <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none p-0 extra-small fw-semibold" id="clearAllSelectedFiles">Clear all</button>
+                        </div>
+                        <div id="selectedFilesList" class="overflow-auto border rounded-3 p-2 bg-white" style="max-height: 220px;">
+                            <!-- File items appended via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Live Uploading Progress Indicator -->
+                    <div id="uploadProgressSection" class="mt-3 p-3 bg-light rounded-3 border" style="display: none;">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <div id="uploadStatusSpinner" class="spinner-border spinner-border-sm text-warning" role="status">
+                                    <span class="visually-hidden">Uploading...</span>
+                                </div>
+                                <span id="uploadStatusText" class="fw-bold text-dark small">Uploading files...</span>
+                            </div>
+                            <span id="uploadPercentageText" class="fw-bold text-primary small">0%</span>
+                        </div>
+                        <div class="progress rounded-pill shadow-sm" style="height: 14px; background-color: #e9ecef;">
+                            <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%; background-color: var(--primary-gold);" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2 extra-small text-muted">
+                            <span id="uploadBytesText">0 KB / 0 KB</span>
+                            <span class="fw-semibold text-warning"><i class="bi bi-arrow-repeat spin me-1"></i> Uploading</span>
+                        </div>
                     </div>
                 </div>
-                <div class="modal-footer border-top-0">
-                    <button type="button" class="btn btn-outline-secondary px-4 rounded-pill" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-gold-action px-4 rounded-pill">Upload</button>
+                <div class="modal-footer border-top-0 px-4 pb-4">
+                    <button type="button" class="btn btn-outline-secondary px-4 rounded-pill" id="uploadCancelBtn" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-gold-action px-4 rounded-pill fw-bold" id="uploadSubmitBtn" disabled>
+                        <i class="bi bi-cloud-upload me-1"></i> Upload Files
+                    </button>
                 </div>
             </form>
         </div>
@@ -659,16 +706,20 @@
 
 {% block extra_js %}
 <script>
+    window.currentFolderId = "";
+    window.currentFolderName = "Home";
     // Navigate to /folder/id/ (Grid View)
     $(document).on("click", ".folder-card", function () {
         let id = $(this).data("id");
         window.location.href = "/folder/" + id + "/";
     });
 
-    // File open (Grid View)
+    // File open preview (Grid View)
     $(document).on("click", ".file-card", function () {
         let url = $(this).data("url");
-        window.open(url, "_blank");
+        let name = $(this).data("name");
+        let size = $(this).data("size") || "";
+        openFilePreviewModal(url, name, size);
     });
 
     // Navigate to /folder/id/ (Details View Row Click)
@@ -677,10 +728,12 @@
         window.location.href = "/folder/" + id + "/";
     });
 
-    // File open (Details View Row Click)
+    // File open preview (Details View Row Click)
     $(document).on("click", ".details-file-row", function () {
         let url = $(this).data("url");
-        window.open(url, "_blank");
+        let name = $(this).data("name");
+        let size = $(this).data("size-formatted") || "";
+        openFilePreviewModal(url, name, size);
     });
 
     function confirmDelete(event, type) {

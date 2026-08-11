@@ -71,6 +71,30 @@ class Folders(models.Model):
         s = round(size_bytes / p, 2)
         return f"{s} {size_name[i]}"
 
+    @property
+    def all_files(self):
+        # Recursively get all files in this folder and any nested subfolders
+        file_list = list(self.files_set.all())
+        for sub in Folders.objects.filter(parent_folder=self):
+            file_list.extend(sub.all_files)
+        return file_list
+
+    @property
+    def all_files_json(self):
+        import json, os
+        data = []
+        for f in self.all_files:
+            if f.file:
+                clean_name = os.path.basename(f.file.name)
+                data.append({
+                    'id': f.id,
+                    'name': clean_name,
+                    'raw_name': f.file.name,
+                    'url': f.file.url,
+                    'size': f.file_size_formatted
+                })
+        return json.dumps(data)
+
     def __str__(self):
         return str(self.name)
 

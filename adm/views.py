@@ -54,8 +54,8 @@ def create_folder(request):
 
 @login_required
 def upload_file(request):
-    if request.method == "POST" and request.FILES.get("file"):
-        file_obj = request.FILES.get("file")
+    if request.method == "POST":
+        file_list = request.FILES.getlist("files") or request.FILES.getlist("file")
         folder_id = request.POST.get("folder_id")
         
         folder = None
@@ -65,8 +65,15 @@ def upload_file(request):
             except Folders.DoesNotExist:
                 folder = None
                 
-        Files.objects.create(file=file_obj, folder=folder)
+        created_count = 0
+        for f in file_list:
+            Files.objects.create(file=f, folder=folder)
+            created_count += 1
         
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or 'application/json' in request.headers.get('Accept', ''):
+            redirect_url = f"/folder/{folder.id}/" if folder else "/"
+            return JsonResponse({"status": "success", "count": created_count, "redirect_url": redirect_url})
+            
         if folder:
             return redirect(f"/folder/{folder.id}/")
         return redirect("/")

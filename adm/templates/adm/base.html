@@ -196,6 +196,77 @@
             box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
         }
 
+        /* File Preview Modal Custom Animations & Styling */
+        @keyframes vinylSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .vinyl-spin {
+            animation: vinylSpin 8s linear infinite;
+        }
+
+        .preview-image-zoom {
+            transition: transform 0.3s ease;
+        }
+
+        .preview-image-zoom:hover {
+            transform: scale(1.02);
+        }
+
+        .extra-small {
+            font-size: 0.78rem;
+        }
+
+        /* Folder Drag and Drop Target Highlighting */
+        .folder-drop-target {
+            border: 2.5px dashed var(--primary-gold) !important;
+            background-color: rgba(212, 175, 55, 0.15) !important;
+            transform: scale(1.04) !important;
+            box-shadow: 0 8px 25px rgba(212, 175, 55, 0.3) !important;
+            z-index: 100 !important;
+        }
+
+        .details-folder-row.folder-drop-target {
+            background-color: rgba(212, 175, 55, 0.2) !important;
+            outline: 2px dashed var(--primary-gold) !important;
+        }
+
+        /* Folder Files Hover Preview Card Styles */
+        #folderFilesHoverCard {
+            pointer-events: auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18) !important;
+        }
+
+        .hover-file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 10px;
+            margin-bottom: 4px;
+            border-radius: 8px;
+            background: #ffffff;
+            border: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .hover-file-item:hover {
+            background-color: rgba(212, 175, 55, 0.12) !important;
+            border-color: var(--primary-gold) !important;
+            transform: translateX(3px);
+        }
+
+        .hover-file-item .file-name-text {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .hover-file-item:hover .file-name-text {
+            color: var(--army-green);
+        }
+
         {% block extra_css %}{% endblock %}
     </style>
 </head>
@@ -235,6 +306,79 @@
         {% block content %}{% endblock %}
     </div>
 
+    <!-- Universal File Preview Modal -->
+    <div class="modal fade" id="filePreviewModal" tabindex="-1" aria-labelledby="filePreviewModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content border-0 rounded-4 shadow-lg overflow-hidden">
+                <div class="modal-header border-bottom-0" style="background-color: var(--army-green); color: white; padding: 16px 24px;">
+                    <div class="d-flex align-items-center gap-3 overflow-hidden">
+                        <div id="previewModalIcon" class="fs-3 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px; background: rgba(255,255,255,0.12); border-radius: 12px;">
+                            <i class="bi bi-file-earmark-fill text-warning"></i>
+                        </div>
+                        <div class="text-truncate">
+                            <h5 class="modal-title mb-0 text-truncate font-weight-bold" id="filePreviewModalLabel" style="font-size: 1.15rem; color: #ffffff;">File Preview</h5>
+                            <div class="d-flex align-items-center gap-2 mt-1">
+                                <span class="badge bg-warning text-dark font-monospace px-2 py-1" id="previewModalExt" style="font-size: 0.75rem; letter-spacing: 0.5px;">FILE</span>
+                                <small class="text-white-50" id="previewModalSize" style="font-size: 0.8rem;"></small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <a id="headerExpandBtn" href="#" target="_blank" class="btn btn-sm btn-outline-light rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;" title="Expand in New Tab">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+
+                <div class="modal-body p-3 p-md-4 bg-white position-relative d-flex align-items-center justify-content-center" style="min-height: 400px; max-height: 75vh; overflow-y: auto;">
+                    <div id="previewLoadingSpinner" class="text-center py-5" style="display: none;">
+                        <div class="spinner-border text-warning" role="status" style="width: 3rem; height: 3rem;">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-3 text-muted small fw-semibold">Loading file preview...</p>
+                    </div>
+                    <div id="filePreviewContent" class="w-100 h-100 d-flex justify-content-center align-items-center">
+                        <!-- Preview content loaded dynamically -->
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light border-top-0 d-flex justify-content-between align-items-center px-4 py-3">
+                    <div class="text-muted small d-none d-sm-flex align-items-center gap-1">
+                        <i class="bi bi-shield-check text-success fs-6"></i>
+                        <span>Kargil Veterans File Explorer</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 ms-auto">
+                        <a id="previewExpandBtn" href="#" target="_blank" class="btn btn-outline-dark rounded-pill px-3 py-2 btn-sm fw-semibold">
+                            <i class="bi bi-box-arrow-up-right me-1"></i> Expand
+                        </a>
+                        <a id="previewDownloadBtn" href="#" download class="btn btn-gold-action rounded-pill px-3 py-2 btn-sm fw-semibold">
+                            <i class="bi bi-download me-1"></i> Download
+                        </a>
+                        <button type="button" class="btn btn-outline-secondary rounded-pill px-3 py-2 btn-sm" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Folder Files Hover Preview Popup Card -->
+    <div id="folderFilesHoverCard" class="shadow-lg border rounded-4 bg-white overflow-hidden position-absolute" style="display: none; z-index: 1080; width: 310px; backdrop-filter: blur(10px); transition: opacity 0.15s ease;">
+        <div class="px-3 py-2 border-bottom d-flex align-items-center justify-content-between" style="background-color: var(--army-green); color: white;">
+            <div class="d-flex align-items-center gap-2 overflow-hidden me-2">
+                <i class="bi bi-folder-fill text-warning fs-6"></i>
+                <span id="hoverCardFolderName" class="fw-bold extra-small text-truncate text-white">Folder</span>
+            </div>
+            <span id="hoverCardFileCount" class="badge bg-warning text-dark font-monospace extra-small flex-shrink-0">0 Files</span>
+        </div>
+        <div id="hoverCardFilesList" class="p-2 overflow-auto" style="max-height: 240px; background-color: #fafafa;">
+            <!-- Files dynamically injected here -->
+        </div>
+        <div class="px-3 py-1-5 border-top bg-light text-center extra-small text-muted">
+            <i class="bi bi-cursor-fill me-1 text-primary"></i> Click any file to preview
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="footer-custom">
         <div class="container">
@@ -247,6 +391,590 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Global Helper JS for File Explorer & Preview Modal -->
+    <script>
+        function isImage(name) {
+            if (!name) return false;
+            return name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|bmp|svg|ico)$/i);
+        }
+
+        function isPdf(name) {
+            if (!name) return false;
+            return name.toLowerCase().match(/\.(pdf)$/i);
+        }
+
+        function isAudio(name) {
+            if (!name) return false;
+            return name.toLowerCase().match(/\.(mp3|wav|ogg|m4a|aac|flac)$/i);
+        }
+
+        function isVideo(name) {
+            if (!name) return false;
+            return name.toLowerCase().match(/\.(mp4|avi|mov|mkv|webm|m4v)$/i);
+        }
+
+        function isTextFile(name) {
+            if (!name) return false;
+            return name.toLowerCase().match(/\.(txt|log|md|json|js|css|html|xml|yaml|yml|py|csv|sh|sql|ini|env)$/i);
+        }
+
+        function getFileIcon(name) {
+            if (!name) return "bi-file-earmark-fill text-secondary";
+            name = name.toLowerCase();
+
+            if (isImage(name)) return "bi-file-image-fill text-primary";
+            if (isPdf(name)) return "bi-file-pdf-fill text-danger";
+            if (name.match(/\.(doc|docx)$/)) return "bi-file-word-fill text-primary";
+            if (name.match(/\.(xls|xlsx|csv)$/)) return "bi-file-excel-fill text-success";
+            if (name.match(/\.(ppt|pptx)$/)) return "bi-file-ppt-fill text-warning";
+            if (name.match(/\.(zip|rar|7z|tar|gz)$/)) return "bi-file-zip-fill text-warning";
+            if (isTextFile(name)) return "bi-file-text-fill text-secondary";
+            if (isVideo(name)) return "bi-file-play-fill text-info";
+            if (isAudio(name)) return "bi-file-music-fill text-info";
+
+            return "bi-file-earmark-fill text-secondary";
+        }
+
+        function showPreviewErrorCard(title, message, cleanName, url, ext) {
+            let $content = $("#filePreviewContent");
+            let $spinner = $("#previewLoadingSpinner");
+            $spinner.hide();
+
+            $content.html(`
+                <div class="text-center py-5 px-4 bg-light rounded-4 w-100 my-2 border shadow-sm" style="max-width: 600px; min-height: 350px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                    <div class="mb-3 text-danger">
+                        <i class="bi bi-exclamation-triangle-fill" style="font-size: 4.5rem;"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-2 text-break">${title}</h5>
+                    <p class="text-muted mb-4 fs-6" style="max-width: 480px; margin: 0 auto;">
+                        ${message}
+                    </p>
+                    <div class="d-flex justify-content-center gap-3 flex-wrap">
+                        <a href="${url}" target="_blank" class="btn btn-outline-dark rounded-pill px-4 py-2 font-weight-bold">
+                            <i class="bi bi-box-arrow-up-right me-1"></i> Try Opening in New Tab
+                        </a>
+                        <a href="${url}" download="${cleanName}" class="btn btn-gold-action rounded-pill px-4 py-2 font-weight-bold">
+                            <i class="bi bi-download me-1"></i> Download File
+                        </a>
+                    </div>
+                </div>
+            `);
+        }
+
+        function openFilePreviewModal(url, rawName, sizeFormatted) {
+            if (!url) return;
+            
+            // Clean filename
+            let cleanName = rawName ? rawName.replace(/^uploads\//i, '').replace(/^files\//i, '') : 'File';
+            let ext = cleanName.includes('.') ? cleanName.split('.').pop().toUpperCase() : 'FILE';
+            let iconClass = getFileIcon(cleanName);
+
+            $("#filePreviewModalLabel").text(cleanName);
+            $("#previewModalExt").text(ext);
+            $("#previewModalSize").text(sizeFormatted ? "• " + sizeFormatted : "");
+            $("#previewModalIcon").html(`<i class="bi ${iconClass}"></i>`);
+
+            // Set action links
+            $("#previewExpandBtn").attr("href", url);
+            $("#headerExpandBtn").attr("href", url);
+            $("#previewDownloadBtn").attr("href", url).attr("download", cleanName);
+
+            let $content = $("#filePreviewContent");
+            let $spinner = $("#previewLoadingSpinner");
+            $content.html("");
+            $spinner.hide();
+
+            if (isImage(cleanName)) {
+                $content.html(`
+                    <div class="d-flex align-items-center justify-content-center p-2 w-100" style="height: 65vh; min-height: 350px;">
+                        <img src="${url}" class="img-fluid rounded-3 shadow-sm preview-image-zoom" alt="${cleanName}" style="max-height: 65vh; max-width: 100%; object-fit: contain; cursor: zoom-in;" title="Click to view full image in new tab">
+                    </div>
+                `);
+                $content.find("img").on("click", function() {
+                    window.open(url, "_blank");
+                });
+                $content.find("img").on("error", function() {
+                    showPreviewErrorCard("Unable to Load Image Preview", "The image file could not be loaded. It may be corrupted, missing from server storage, or in an unsupported image format.", cleanName, url, ext);
+                });
+            } else if (isPdf(cleanName)) {
+                $content.html(`
+                    <div class="w-100 rounded-3 overflow-hidden shadow-sm border" style="height: 68vh; min-height: 380px;">
+                        <iframe src="${url}" width="100%" height="100%" style="border: none;"></iframe>
+                    </div>
+                `);
+            } else if (isVideo(cleanName)) {
+                $content.html(`
+                    <div class="d-flex align-items-center justify-content-center bg-black rounded-4 overflow-hidden shadow-sm w-100 position-relative" style="height: 65vh; min-height: 380px; max-height: 68vh;">
+                        <video controls autoplay preload="metadata" style="width: 100%; height: 100%; object-fit: contain; border-radius: 8px; outline: none;">
+                            <source src="${url}">
+                            Your browser does not support video playback.
+                        </video>
+                    </div>
+                `);
+                let handleVideoErr = function() {
+                    showPreviewErrorCard("Unable to Play Video Preview", "The video file could not be loaded or played. The file might be corrupted, missing from server storage, or uses an unsupported video format.", cleanName, url, ext);
+                };
+                $content.find("video").on("error", handleVideoErr);
+                $content.find("source").on("error", handleVideoErr);
+            } else if (isAudio(cleanName)) {
+                $content.html(`
+                    <div class="text-center p-4 p-md-5 bg-light rounded-4 w-100 my-2 border shadow-sm" style="max-width: 600px;">
+                        <div class="mb-3">
+                            <i class="bi bi-disc-fill text-info vinyl-spin" style="font-size: 4.5rem; display: inline-block;"></i>
+                        </div>
+                        <h6 class="fw-bold text-dark mb-3 text-break">${cleanName}</h6>
+                        <audio controls autoplay src="${url}" style="width: 100%;" class="shadow-sm rounded-pill"></audio>
+                    </div>
+                `);
+                $content.find("audio").on("error", function() {
+                    showPreviewErrorCard("Unable to Play Audio Preview", "The audio file could not be played. It may be missing from server storage, corrupted, or formatted in an unsupported audio format.", cleanName, url, ext);
+                });
+            } else if (isTextFile(cleanName)) {
+                $spinner.show();
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) throw new Error("Could not load file text");
+                        return response.text();
+                    })
+                    .then(text => {
+                        $spinner.hide();
+                        let safeText = $('<div>').text(text).html();
+                        $content.html(`
+                            <div class="w-100 text-start">
+                                <pre class="bg-dark text-light p-3 rounded-3 mb-0 shadow-sm" style="max-height: 65vh; overflow: auto; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.875rem; white-space: pre-wrap; word-break: break-all; line-height: 1.5;"><code>${safeText}</code></pre>
+                            </div>
+                        `);
+                    })
+                    .catch(err => {
+                        $spinner.hide();
+                        showPreviewErrorCard("Unable to Load Text Preview", "The text file could not be loaded or retrieved from server storage.", cleanName, url, ext);
+                    });
+            } else {
+                // Fallback for non-previewable files (e.g. Office docs, Zip archives, binaries)
+                $content.html(`
+                    <div class="text-center py-5 px-4 bg-light rounded-4 w-100 my-2 border shadow-sm" style="max-width: 600px;">
+                        <div class="mb-3">
+                            <i class="bi ${iconClass}" style="font-size: 4.5rem;"></i>
+                        </div>
+                        <h5 class="fw-bold text-dark mb-2 text-break">${cleanName}</h5>
+                        <p class="text-muted mb-4 fs-6" style="max-width: 480px; margin: 0 auto;">
+                            Direct visual preview is not available in browser for this file type <strong>(${ext})</strong>. You can expand it in a new tab or download the file.
+                        </p>
+                        <div class="d-flex justify-content-center gap-3 flex-wrap">
+                            <a href="${url}" target="_blank" class="btn btn-outline-dark rounded-pill px-4 py-2 font-weight-bold">
+                                <i class="bi bi-box-arrow-up-right me-1"></i> Expand in New Tab
+                            </a>
+                            <a href="${url}" download="${cleanName}" class="btn btn-gold-action rounded-pill px-4 py-2 font-weight-bold">
+                                <i class="bi bi-download me-1"></i> Download File
+                            </a>
+                        </div>
+                    </div>
+                `);
+            }
+
+            $("#filePreviewModal").modal("show");
+        }
+
+        let selectedFilesArray = [];
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function updateSelectedFilesListUI() {
+            let $list = $("#selectedFilesList");
+            $list.html("");
+
+            if (selectedFilesArray.length === 0) {
+                $("#uploadFilePreviewCard").slideUp(200);
+                $("#uploadSubmitBtn").prop("disabled", true);
+                return;
+            }
+
+            let totalSize = 0;
+            selectedFilesArray.forEach((file, index) => {
+                totalSize += file.size;
+                let cleanName = file.name;
+                let sizeText = formatBytes(file.size);
+                let iconClass = getFileIcon(cleanName);
+
+                let $item = $(`
+                    <div class="d-flex align-items-center justify-content-between p-2 mb-1 bg-light rounded-2 border">
+                        <div class="d-flex align-items-center gap-2 overflow-hidden me-2">
+                            <div class="thumb-box d-flex align-items-center justify-content-center text-warning fs-5 flex-shrink-0" style="width: 36px; height: 36px;">
+                                <i class="bi ${iconClass}"></i>
+                            </div>
+                            <div class="overflow-hidden">
+                                <div class="fw-semibold text-dark text-truncate extra-small" title="${cleanName}">${cleanName}</div>
+                                <div class="text-muted extra-small">${sizeText}</div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-2 remove-file-btn flex-shrink-0" data-index="${index}" title="Remove file">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                `);
+
+                if (isImage(cleanName)) {
+                    let reader = new FileReader();
+                    reader.onload = function(e) {
+                        $item.find(".thumb-box").html(`<img src="${e.target.result}" style="width:36px; height:36px; object-fit:cover; border-radius:4px; border:1px solid #ddd;">`);
+                    };
+                    reader.readAsDataURL(file);
+                }
+
+                $list.append($item);
+            });
+
+            $("#selectedFilesSummary").text(`${selectedFilesArray.length} File${selectedFilesArray.length > 1 ? 's' : ''} Selected (${formatBytes(totalSize)})`);
+            $("#uploadFilePreviewCard").slideDown(200);
+            $("#uploadSubmitBtn").prop("disabled", false);
+        }
+
+        $(document).ready(function() {
+            $('#filePreviewModal').on('hidden.bs.modal', function () {
+                $('#filePreviewContent').html('');
+            });
+
+            // Live file selection preview in Upload File Modal
+            $(document).on("change", "#formFile", function() {
+                let files = this.files;
+                if (files && files.length > 0) {
+                    for (let i = 0; i < files.length; i++) {
+                        selectedFilesArray.push(files[i]);
+                    }
+                    updateSelectedFilesListUI();
+                }
+                $(this).val("");
+            });
+
+            // Remove individual file
+            $(document).on("click", ".remove-file-btn", function(e) {
+                e.preventDefault();
+                let index = $(this).data("index");
+                selectedFilesArray.splice(index, 1);
+                updateSelectedFilesListUI();
+            });
+
+            // Clear all selected files
+            $(document).on("click", "#clearAllSelectedFiles", function(e) {
+                e.preventDefault();
+                selectedFilesArray = [];
+                updateSelectedFilesListUI();
+            });
+
+            // Reset modal on hide
+            $('#uploadFileModal').on('hidden.bs.modal', function () {
+                selectedFilesArray = [];
+                updateSelectedFilesListUI();
+                $("#uploadProgressSection").hide();
+                $("#uploadDropzone").show();
+                $("#uploadSubmitBtn").show().prop("disabled", true);
+                $("#uploadCancelBtn").prop("disabled", false);
+                $("#uploadProgressBar").css("width", "0%").attr("aria-valuenow", 0);
+                $("#uploadPercentageText").text("0%");
+            });
+
+            // Drag and Drop
+            $(document).on("dragover dragenter", "#uploadDropzone", function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                $(this).addClass("bg-white border-primary shadow-sm");
+            });
+
+            $(document).on("dragleave dragend drop", "#uploadDropzone", function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                $(this).removeClass("bg-white border-primary shadow-sm");
+            });
+
+            $(document).on("drop", "#uploadDropzone", function(e) {
+                let files = e.originalEvent.dataTransfer.files;
+                if (files && files.length > 0) {
+                    for (let i = 0; i < files.length; i++) {
+                        selectedFilesArray.push(files[i]);
+                    }
+                    updateSelectedFilesListUI();
+                }
+            });
+
+            // Submit upload with XHR AJAX progress
+            $(document).on("submit", "#uploadFileForm", function(e) {
+                e.preventDefault();
+                if (selectedFilesArray.length === 0) return;
+
+                let folderId = $(this).find('input[name="folder_id"]').val() || "";
+                let csrfToken = $(this).find('input[name="csrfmiddlewaretoken"]').val();
+
+                let formData = new FormData();
+                formData.append("csrfmiddlewaretoken", csrfToken);
+                formData.append("folder_id", folderId);
+                selectedFilesArray.forEach(file => {
+                    formData.append("files", file);
+                });
+
+                $("#uploadDropzone").slideUp(200);
+                $("#uploadFilePreviewCard").slideUp(200);
+                $("#uploadProgressSection").slideDown(200);
+                $("#uploadSubmitBtn").hide();
+                $("#uploadCancelBtn").prop("disabled", true);
+                $("#uploadStatusSpinner").show();
+                $("#uploadStatusText").text(`Uploading ${selectedFilesArray.length} file${selectedFilesArray.length > 1 ? 's' : ''}...`);
+
+                let xhr = new XMLHttpRequest();
+                xhr.open("POST", "/upload-file/", true);
+                xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+                xhr.upload.onprogress = function(evt) {
+                    if (evt.lengthComputable) {
+                        let percent = Math.round((evt.loaded / evt.total) * 100);
+                        let loadedText = formatBytes(evt.loaded);
+                        let totalText = formatBytes(evt.total);
+
+                        $("#uploadProgressBar").css("width", percent + "%").attr("aria-valuenow", percent);
+                        $("#uploadPercentageText").text(percent + "%");
+                        $("#uploadBytesText").text(`${loadedText} of ${totalText}`);
+                    }
+                };
+
+                xhr.onload = function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        $("#uploadProgressBar").css("width", "100%").removeClass("progress-bar-animated");
+                        $("#uploadPercentageText").text("100%");
+                        $("#uploadStatusSpinner").hide();
+                        $("#uploadStatusText").html('<i class="bi bi-check-circle-fill text-success fs-5 me-1"></i> Upload Complete! Refreshing...');
+                        
+                        let res = {};
+                        try { res = JSON.parse(xhr.responseText); } catch(e){}
+                        let targetUrl = res.redirect_url || window.location.href;
+
+                        setTimeout(function() {
+                            window.location.href = targetUrl;
+                        }, 600);
+                    } else {
+                        alert("Upload failed. Please try again.");
+                        $("#uploadProgressSection").hide();
+                        $("#uploadDropzone").slideDown(200);
+                        $("#uploadFilePreviewCard").slideDown(200);
+                        $("#uploadSubmitBtn").show();
+                        $("#uploadCancelBtn").prop("disabled", false);
+                    }
+                };
+
+                xhr.onerror = function() {
+                    alert("An error occurred during upload. Please check network connection.");
+                    $("#uploadProgressSection").hide();
+                    $("#uploadDropzone").slideDown(200);
+                    $("#uploadFilePreviewCard").slideDown(200);
+                    $("#uploadSubmitBtn").show();
+                    $("#uploadCancelBtn").prop("disabled", false);
+                };
+
+                xhr.send(formData);
+            });
+
+            // Folder Files Hover Preview Card Logic
+            let hoverTimeout = null;
+            let isOverHoverCard = false;
+            let isOverFolderElement = false;
+
+            function showFolderFilesHoverCard(element, event) {
+                let filesDataRaw = $(element).attr("data-files-json");
+                let folderName = $(element).data("name") || $(element).attr("data-name") || "Folder";
+                
+                let files = [];
+                if (filesDataRaw) {
+                    try {
+                        files = JSON.parse(filesDataRaw);
+                    } catch(e) {
+                        files = [];
+                    }
+                }
+
+                $("#hoverCardFolderName").text(folderName);
+                $("#hoverCardFileCount").text(`${files.length} File${files.length !== 1 ? 's' : ''}`);
+
+                let $list = $("#hoverCardFilesList");
+                $list.html("");
+
+                if (files.length === 0) {
+                    $list.html(`
+                        <div class="text-center py-3 text-muted extra-small">
+                            <i class="bi bi-folder-x fs-4 d-block mb-1 text-secondary"></i>
+                            No files in this folder
+                        </div>
+                    `);
+                } else {
+                    files.forEach(file => {
+                        let iconClass = getFileIcon(file.name);
+                        let $item = $(`
+                            <div class="hover-file-item">
+                                <div class="d-flex align-items-center gap-2 overflow-hidden me-2">
+                                    <i class="bi ${iconClass} fs-6 flex-shrink-0"></i>
+                                    <span class="file-name-text text-truncate" title="${file.name}">${file.name}</span>
+                                </div>
+                                <span class="text-muted extra-small flex-shrink-0">${file.size}</span>
+                            </div>
+                        `);
+
+                        $item.on("click", function(e) {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            hideFolderHoverCard();
+                            openFilePreviewModal(file.url, file.name, file.size);
+                        });
+
+                        $list.append($item);
+                    });
+                }
+
+                // Calculate stationary position once upon hover
+                let $el = $(element);
+                let offset = $el.offset();
+                let cardWidth = 310;
+                let windowWidth = $(window).width() + $(window).scrollLeft();
+
+                let leftPos, topPos;
+
+                if ($el.hasClass("folder-card")) {
+                    leftPos = offset.left + $el.outerWidth() + 10;
+                    topPos = offset.top;
+
+                    if (leftPos + cardWidth > windowWidth - 15) {
+                        leftPos = offset.left - cardWidth - 10;
+                    }
+                } else {
+                    let pageX = event.pageX || (event.clientX + $(window).scrollLeft());
+                    let pageY = event.pageY || (event.clientY + $(window).scrollTop());
+                    leftPos = pageX + 15;
+                    topPos = pageY - 15;
+
+                    if (leftPos + cardWidth > windowWidth - 15) {
+                        leftPos = pageX - cardWidth - 15;
+                    }
+                }
+
+                if (topPos < $(window).scrollTop() + 10) {
+                    topPos = $(window).scrollTop() + 10;
+                }
+
+                $("#folderFilesHoverCard").css({
+                    left: leftPos + "px",
+                    top: topPos + "px"
+                }).stop(true, true).fadeIn(150);
+            }
+
+            function hideFolderHoverCard() {
+                $("#folderFilesHoverCard").stop(true, true).fadeOut(150);
+            }
+
+            function scheduleHideFolderHoverCard() {
+                clearTimeout(hoverTimeout);
+                hoverTimeout = setTimeout(function() {
+                    if (!isOverHoverCard && !isOverFolderElement) {
+                        hideFolderHoverCard();
+                    }
+                }, 300); // 300ms grace period so user can move cursor into card smoothly
+            }
+
+            $(document).on("mouseenter", ".folder-card, .details-folder-row", function(e) {
+                isOverFolderElement = true;
+                clearTimeout(hoverTimeout);
+                showFolderFilesHoverCard(this, e);
+            });
+
+            $(document).on("mouseleave", ".folder-card, .details-folder-row", function() {
+                isOverFolderElement = false;
+                scheduleHideFolderHoverCard();
+            });
+
+            $(document).on("mouseenter", "#folderFilesHoverCard", function() {
+                isOverHoverCard = true;
+                clearTimeout(hoverTimeout);
+            });
+
+            $(document).on("mouseleave", "#folderFilesHoverCard", function() {
+                isOverHoverCard = false;
+                scheduleHideFolderHoverCard();
+            });
+
+            // Update destination UI badge & hidden input
+            function updateUploadDestinationUI(folderId, folderName) {
+                folderId = (folderId !== undefined && folderId !== null) ? String(folderId) : (window.currentFolderId || "");
+                folderName = folderName || window.currentFolderName || "Home";
+
+                $("#uploadFolderId").val(folderId);
+                $("#uploadDestinationBadge").html(`<i class="bi bi-folder-fill me-1"></i> ${folderName}`);
+            }
+
+            // When Upload Modal is shown via button click
+            $('#uploadFileModal').on('show.bs.modal', function (e) {
+                let currentInputVal = $("#uploadFolderId").val();
+                if (!currentInputVal && window.currentFolderId) {
+                    updateUploadDestinationUI(window.currentFolderId, window.currentFolderName);
+                }
+            });
+
+            // Highlight folder card/row on dragover & handle drop directly onto folder
+            $(document).on("dragover dragenter", ".folder-card, .details-folder-row", function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                $(this).addClass("folder-drop-target");
+            });
+
+            $(document).on("dragleave dragend", ".folder-card, .details-folder-row", function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                $(this).removeClass("folder-drop-target");
+            });
+
+            $(document).on("drop", ".folder-card, .details-folder-row", function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                $(this).removeClass("folder-drop-target");
+
+                let files = e.originalEvent.dataTransfer ? e.originalEvent.dataTransfer.files : null;
+                if (files && files.length > 0) {
+                    let targetId = $(this).data("id") || $(this).attr("data-id") || "";
+                    let targetName = $(this).data("name") || $(this).attr("data-name") || "Folder";
+
+                    updateUploadDestinationUI(targetId, targetName);
+
+                    for (let i = 0; i < files.length; i++) {
+                        selectedFilesArray.push(files[i]);
+                    }
+                    updateSelectedFilesListUI();
+                    $("#uploadFileModal").modal("show");
+                }
+            });
+
+            // Global drag & drop anywhere on the page
+            $(document).on("dragover dragenter", window, function(e) {
+                e.preventDefault();
+            });
+
+            $(document).on("drop", window, function(e) {
+                if (e.isPropagationStopped()) return;
+
+                let files = e.originalEvent.dataTransfer ? e.originalEvent.dataTransfer.files : null;
+                if (files && files.length > 0) {
+                    e.preventDefault();
+                    updateUploadDestinationUI(window.currentFolderId, window.currentFolderName);
+
+                    for (let i = 0; i < files.length; i++) {
+                        selectedFilesArray.push(files[i]);
+                    }
+                    updateSelectedFilesListUI();
+                    $("#uploadFileModal").modal("show");
+                }
+            });
+        });
+    </script>
 
     {% block extra_js %}{% endblock %}
 
