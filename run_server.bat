@@ -1,0 +1,4 @@
+@echo off
+echo Starting Django Development Server...
+python manage.py runserver
+pause
