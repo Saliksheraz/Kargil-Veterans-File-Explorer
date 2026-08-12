@@ -326,24 +326,24 @@
     <div class="modal fade" id="filePreviewModal" tabindex="-1" aria-labelledby="filePreviewModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-xl">
             <div class="modal-content border-0 rounded-4 shadow-lg overflow-hidden">
-                <div class="modal-header border-bottom-0" style="background-color: var(--army-green); color: white; padding: 16px 24px;">
-                    <div class="d-flex align-items-center gap-3 overflow-hidden">
-                        <div id="previewModalIcon" class="fs-3 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px; background: rgba(255,255,255,0.12); border-radius: 12px;">
+                <div class="modal-header border-bottom-0 d-flex align-items-center justify-content-between" style="background-color: var(--army-green); color: white; padding: 16px 24px;">
+                    <div class="d-flex align-items-center gap-3 overflow-hidden me-3" style="min-width: 0; flex: 1;">
+                        <div id="previewModalIcon" class="fs-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px; background: rgba(255,255,255,0.12); border-radius: 12px;">
                             <i class="bi bi-file-earmark-fill text-warning"></i>
                         </div>
                         <div class="text-truncate">
                             <h5 class="modal-title mb-0 text-truncate font-weight-bold" id="filePreviewModalLabel" style="font-size: 1.15rem; color: #ffffff;">File Preview</h5>
                             <div class="d-flex align-items-center gap-2 mt-1">
                                 <span class="badge bg-warning text-dark font-monospace px-2 py-1" id="previewModalExt" style="font-size: 0.75rem; letter-spacing: 0.5px;">FILE</span>
-                                <small class="text-white-50" id="previewModalSize" style="font-size: 0.8rem;"></small>
+                                <small class="text-white-50 text-truncate" id="previewModalSize" style="font-size: 0.8rem;"></small>
                             </div>
                         </div>
                     </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <a id="headerExpandBtn" href="#" target="_blank" class="btn btn-sm btn-outline-light rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;" title="Expand in New Tab">
+                    <div class="d-flex align-items-center gap-2 flex-shrink-0 ms-auto">
+                        <a id="headerExpandBtn" href="#" target="_blank" class="btn btn-sm btn-outline-light rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; border-color: rgba(255,255,255,0.3);" title="Expand in New Tab">
                             <i class="bi bi-box-arrow-up-right"></i>
                         </a>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <button type="button" class="btn-close btn-close-white ms-1" data-bs-dismiss="modal" aria-label="Close" style="font-size: 1.1rem; opacity: 0.9;"></button>
                     </div>
                 </div>
 
@@ -585,24 +585,40 @@
         }
 
         function renderPdfDocument(url, cleanName, $container, $spinner, ext) {
-            $spinner.show();
-            if (!window.pdfjsLib) {
-                renderPdfFallback(url, cleanName, $container, $spinner, ext);
-                return;
-            }
+            let updateProgress = showPreviewProgressCard(cleanName, $container, $spinner);
 
-            pdfjsLib.getDocument(url).promise.then(function(pdf) {
+            fetchWithProgress(url, updateProgress).then(function(arrayBuffer) {
+                if (!window.pdfjsLib) {
+                    renderPdfFallback(url, cleanName, $container, $spinner, ext);
+                    return;
+                }
+                return pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            }).then(function(pdf) {
+                if (!pdf) return;
                 let totalPages = pdf.numPages;
                 let scale = 1.2;
-                let pagesContainerId = "pdfPagesContainer_" + Math.floor(Math.random() * 100000);
+                let currentPage = 1;
+                let pageCanvasId = "pdfCanvas_" + Math.floor(Math.random() * 100000);
 
-                $spinner.hide();
                 $container.html(`
                     <div class="w-100 text-center overflow-auto p-3" style="max-height: 68vh; background-color: #525659; border-radius: 8px;">
-                        <div class="d-flex align-items-center justify-content-between mb-3 px-3 py-2 bg-dark text-white rounded-3 shadow-sm mx-auto" style="max-width: 840px;">
-                            <span class="fw-bold text-truncate me-2" style="max-width: 320px;">
+                        <div class="d-flex align-items-center justify-content-between mb-3 px-3 py-2 bg-dark text-white rounded-3 shadow-sm mx-auto flex-wrap gap-2" style="max-width: 840px;">
+                            <span class="fw-bold text-truncate me-2" style="max-width: 260px;">
                                 <i class="bi bi-file-earmark-pdf-fill text-danger me-2 fs-5"></i>${cleanName}
                             </span>
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-outline-light btn-sm rounded-pill px-3 pdf-prev-page" ${totalPages <= 1 ? 'disabled' : ''}>
+                                    <i class="bi bi-chevron-left me-1"></i> Prev
+                                </button>
+                                <div class="d-flex align-items-center gap-1 font-monospace extra-small">
+                                    <span>Page</span>
+                                    <input type="number" class="form-control form-control-sm text-center pdf-page-input font-monospace px-1" value="1" min="1" max="${totalPages}" style="width: 55px; height: 28px; background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3);">
+                                    <span>/ ${totalPages}</span>
+                                </div>
+                                <button type="button" class="btn btn-gold-action btn-sm rounded-pill px-3 pdf-next-page" ${totalPages <= 1 ? 'disabled' : ''}>
+                                    Next <i class="bi bi-chevron-right ms-1"></i>
+                                </button>
+                            </div>
                             <div class="d-flex align-items-center gap-2">
                                 <button type="button" class="btn btn-outline-light btn-sm rounded-circle pdf-zoom-out" title="Zoom Out">
                                     <i class="bi bi-zoom-out"></i>
@@ -611,52 +627,73 @@
                                 <button type="button" class="btn btn-outline-light btn-sm rounded-circle pdf-zoom-in" title="Zoom In">
                                     <i class="bi bi-zoom-in"></i>
                                 </button>
-                                <span class="badge bg-danger ms-2 font-monospace px-3 py-1.5">${totalPages} Page${totalPages > 1 ? 's' : ''}</span>
                             </div>
                         </div>
-                        <div id="${pagesContainerId}" class="d-flex flex-column align-items-center gap-3"></div>
+
+                        <div class="bg-white shadow-lg rounded-2 overflow-hidden mx-auto position-relative d-inline-block mb-2" style="max-width: 100%;">
+                            <canvas id="${pageCanvasId}" class="d-block mx-auto"></canvas>
+                        </div>
                     </div>
                 `).show();
 
-                let $pagesWrapper = $("#" + pagesContainerId);
+                let isRendering = false;
 
-                function renderAllPages(currentScale) {
-                    $pagesWrapper.html('');
-                    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-                        let pageCanvasId = `${pagesContainerId}_page_${pageNum}`;
-                        $pagesWrapper.append(`
-                            <div class="bg-white shadow-lg rounded-2 overflow-hidden mb-2 position-relative" style="max-width: 100%;">
-                                <canvas id="${pageCanvasId}" class="d-block mx-auto"></canvas>
-                                <div class="text-end px-2 py-1 bg-light text-muted extra-small border-top font-monospace">Page ${pageNum} of ${totalPages}</div>
-                            </div>
-                        `);
+                function renderPage(pageNum) {
+                    if (pageNum < 1 || pageNum > totalPages || isRendering) return;
+                    isRendering = true;
+                    currentPage = pageNum;
+                    $container.find(".pdf-page-input").val(currentPage);
+                    $container.find(".pdf-prev-page").prop("disabled", currentPage === 1);
+                    $container.find(".pdf-next-page").prop("disabled", currentPage === totalPages);
 
-                        (function(num, canvasId) {
-                            pdf.getPage(num).then(function(page) {
-                                let viewport = page.getViewport({ scale: currentScale });
-                                let canvas = document.getElementById(canvasId);
-                                if (!canvas) return;
-                                let context = canvas.getContext('2d');
-                                canvas.height = viewport.height;
-                                canvas.width = viewport.width;
+                    pdf.getPage(currentPage).then(function(page) {
+                        let viewport = page.getViewport({ scale: scale });
+                        let canvas = document.getElementById(pageCanvasId);
+                        if (!canvas) {
+                            isRendering = false;
+                            return;
+                        }
+                        let context = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
 
-                                let renderContext = {
-                                    canvasContext: context,
-                                    viewport: viewport
-                                };
-                                page.render(renderContext);
-                            });
-                        })(pageNum, pageCanvasId);
-                    }
+                        let renderContext = {
+                            canvasContext: context,
+                            viewport: viewport
+                        };
+                        page.render(renderContext).promise.then(function() {
+                            isRendering = false;
+                        }).catch(function() {
+                            isRendering = false;
+                        });
+                    }).catch(function() {
+                        isRendering = false;
+                    });
                 }
 
-                renderAllPages(scale);
+                renderPage(1);
+
+                $container.find(".pdf-next-page").on("click", function() {
+                    if (currentPage < totalPages) renderPage(currentPage + 1);
+                });
+
+                $container.find(".pdf-prev-page").on("click", function() {
+                    if (currentPage > 1) renderPage(currentPage - 1);
+                });
+
+                $container.find(".pdf-page-input").on("change keyup", function(e) {
+                    if (e.type === 'keyup' && e.key !== 'Enter') return;
+                    let p = parseInt($(this).val(), 10);
+                    if (!isNaN(p) && p >= 1 && p <= totalPages) {
+                        renderPage(p);
+                    }
+                });
 
                 $container.find(".pdf-zoom-in").on("click", function() {
-                    if (scale < 2.5) {
+                    if (scale < 3.0) {
                         scale += 0.2;
                         $container.find(".pdf-zoom-level").text(Math.round(scale * 100) + "%");
-                        renderAllPages(scale);
+                        renderPage(currentPage);
                     }
                 });
 
@@ -664,13 +701,12 @@
                     if (scale > 0.5) {
                         scale -= 0.2;
                         $container.find(".pdf-zoom-level").text(Math.round(scale * 100) + "%");
-                        renderAllPages(scale);
+                        renderPage(currentPage);
                     }
                 });
 
             }).catch(function(err) {
-                $spinner.hide();
-                renderPdfFallback(url, cleanName, $container, $spinner, ext);
+                showPreviewErrorCard("Unable to Render PDF", "The PDF file could not be parsed or rendered.", cleanName, url, ext);
             });
         }
 

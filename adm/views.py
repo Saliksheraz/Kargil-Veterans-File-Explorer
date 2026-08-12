@@ -27,13 +27,19 @@ def serve_media(request, path):
     response['X-Frame-Options'] = 'SAMEORIGIN'
     return response
 
+from urllib.parse import unquote
+
 @login_required
 @xframe_options_sameorigin
 def doc_viewer(request):
     file_url = request.GET.get('url', '')
     file_name = request.GET.get('name', '')
+    if file_url:
+        file_url = unquote(file_url)
     if not file_name and file_url:
         file_name = os.path.basename(file_url)
+    if file_name:
+        file_name = unquote(file_name)
     clean_name = file_name.replace('uploads/', '').replace('files/', '')
     return render(request, "adm/doc_viewer.html", {
         "file_url": file_url,

@@ -94,29 +94,123 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
     <script>
+        function formatBytes(bytes) {
+            if (bytes === 0 || !bytes) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function showPreviewProgressCard(cleanName, $container, $spinner) {
+            if ($spinner) $spinner.hide();
+            let cardId = "previewProgressCard_" + Math.floor(Math.random() * 100000);
+            $container.html(`
+                <div id="${cardId}" class="text-center py-5 px-4 bg-white rounded-4 w-100 my-4 border shadow-sm mx-auto d-flex flex-column justify-content-center align-items-center" style="max-width: 580px; min-height: 300px;">
+                    <div class="mb-3 text-warning">
+                        <i class="bi bi-cloud-arrow-down-fill display-3"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-1 text-break">${cleanName}</h5>
+                    <p class="text-muted small mb-3">Downloading file content for preview...</p>
+
+                    <div class="progress rounded-pill mb-2 shadow-xs w-100" style="height: 22px; background-color: #e2e8f0;">
+                        <div class="preview-progress-bar progress-bar progress-bar-striped progress-bar-animated bg-warning text-dark font-monospace fw-bold small" role="progressbar" style="width: 0%;">
+                            0%
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between text-muted small font-monospace px-1 w-100">
+                        <span class="preview-progress-downloaded">0 MB</span>
+                        <span class="preview-progress-total">Loading...</span>
+                    </div>
+                </div>
+            `).show();
+
+            let $card = $("#" + cardId);
+            return function updateProgress(percent, loaded, total) {
+                if (total && total > 0) {
+                    let pct = percent !== null ? percent : Math.round((loaded / total) * 100);
+                    $card.find(".preview-progress-bar").css("width", pct + "%").text(pct + "%");
+                    $card.find(".preview-progress-downloaded").text(formatBytes(loaded));
+                    $card.find(".preview-progress-total").text(formatBytes(total));
+                } else {
+                    $card.find(".preview-progress-bar").css("width", "100%").text("Downloading...");
+                    $card.find(".preview-progress-downloaded").text(formatBytes(loaded));
+                    $card.find(".preview-progress-total").text("Streaming...");
+                }
+            };
+        }
+
+        function fetchWithProgress(url, onProgress) {
+            return new Promise(function(resolve, reject) {
+                let xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.responseType = 'arraybuffer';
+
+                xhr.onprogress = function(e) {
+                    if (e.lengthComputable) {
+                        let percent = Math.round((e.loaded / e.total) * 100);
+                        if (onProgress) onProgress(percent, e.loaded, e.total);
+                    } else {
+                        if (onProgress) onProgress(null, e.loaded, 0);
+                    }
+                };
+
+                xhr.onload = function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve(xhr.response);
+                    } else {
+                        reject(new Error("HTTP Error " + xhr.status));
+                    }
+                };
+
+                xhr.onerror = function() {
+                    reject(new Error("Network Error"));
+                };
+
+                xhr.send();
+            });
+        }
+
         if (window.pdfjsLib) {
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         }
 
         function renderPdfDocument(url, cleanName, $container, $spinner, ext) {
-            $spinner.show();
-            if (!window.pdfjsLib) {
-                renderPdfFallback(url, cleanName, $container, $spinner, ext);
-                return;
-            }
+            let updateProgress = showPreviewProgressCard(cleanName, $container, $spinner);
 
-            pdfjsLib.getDocument(url).promise.then(function(pdf) {
+            fetchWithProgress(url, updateProgress).then(function(arrayBuffer) {
+                if (!window.pdfjsLib) {
+                    renderPdfFallback(url, cleanName, $container, $spinner, ext);
+                    return;
+                }
+                return pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            }).then(function(pdf) {
+                if (!pdf) return;
                 let totalPages = pdf.numPages;
                 let scale = 1.35;
-                let pagesContainerId = "pdfPagesContainer_" + Math.floor(Math.random() * 100000);
+                let currentPage = 1;
+                let pageCanvasId = "pdfCanvas_" + Math.floor(Math.random() * 100000);
 
-                $spinner.hide();
                 $container.html(`
                     <div class="w-100 text-center overflow-auto p-4 mx-auto" style="max-height: 85vh; max-width: 1100px; background-color: #525659; border-radius: 12px;">
-                        <div class="d-flex align-items-center justify-content-between mb-3 px-3 py-2 bg-dark text-white rounded-3 shadow-sm mx-auto" style="max-width: 900px;">
-                            <span class="fw-bold text-truncate me-2 fs-5" style="max-width: 400px;">
+                        <div class="d-flex align-items-center justify-content-between mb-3 px-3 py-2 bg-dark text-white rounded-3 shadow-sm mx-auto flex-wrap gap-2" style="max-width: 900px;">
+                            <span class="fw-bold text-truncate me-2 fs-5" style="max-width: 320px;">
                                 <i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i>${cleanName}
                             </span>
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-outline-light btn-sm rounded-pill px-3 pdf-prev-page" ${totalPages <= 1 ? 'disabled' : ''}>
+                                    <i class="bi bi-chevron-left me-1"></i> Prev
+                                </button>
+                                <div class="d-flex align-items-center gap-1 font-monospace small">
+                                    <span>Page</span>
+                                    <input type="number" class="form-control form-control-sm text-center pdf-page-input font-monospace px-1" value="1" min="1" max="${totalPages}" style="width: 60px; height: 30px; background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3);">
+                                    <span>/ ${totalPages}</span>
+                                </div>
+                                <button type="button" class="btn btn-warning btn-sm text-dark font-weight-bold rounded-pill px-3 pdf-next-page" ${totalPages <= 1 ? 'disabled' : ''}>
+                                    Next <i class="bi bi-chevron-right ms-1"></i>
+                                </button>
+                            </div>
                             <div class="d-flex align-items-center gap-2">
                                 <button type="button" class="btn btn-outline-light btn-sm rounded-circle pdf-zoom-out" title="Zoom Out">
                                     <i class="bi bi-zoom-out"></i>
@@ -125,52 +219,73 @@
                                 <button type="button" class="btn btn-outline-light btn-sm rounded-circle pdf-zoom-in" title="Zoom In">
                                     <i class="bi bi-zoom-in"></i>
                                 </button>
-                                <span class="badge bg-danger ms-2 font-monospace px-3 py-1.5 fs-6">${totalPages} Page${totalPages > 1 ? 's' : ''}</span>
                             </div>
                         </div>
-                        <div id="${pagesContainerId}" class="d-flex flex-column align-items-center gap-3"></div>
+
+                        <div class="bg-white shadow-lg rounded-2 overflow-hidden mx-auto position-relative d-inline-block mb-3" style="max-width: 100%;">
+                            <canvas id="${pageCanvasId}" class="d-block mx-auto"></canvas>
+                        </div>
                     </div>
                 `).show();
 
-                let $pagesWrapper = $("#" + pagesContainerId);
+                let isRendering = false;
 
-                function renderAllPages(currentScale) {
-                    $pagesWrapper.html('');
-                    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-                        let pageCanvasId = `${pagesContainerId}_page_${pageNum}`;
-                        $pagesWrapper.append(`
-                            <div class="bg-white shadow-lg rounded-2 overflow-hidden mb-3 position-relative" style="max-width: 100%;">
-                                <canvas id="${pageCanvasId}" class="d-block mx-auto"></canvas>
-                                <div class="text-end px-3 py-1.5 bg-light text-muted small border-top font-monospace">Page ${pageNum} of ${totalPages}</div>
-                            </div>
-                        `);
+                function renderPage(pageNum) {
+                    if (pageNum < 1 || pageNum > totalPages || isRendering) return;
+                    isRendering = true;
+                    currentPage = pageNum;
+                    $container.find(".pdf-page-input").val(currentPage);
+                    $container.find(".pdf-prev-page").prop("disabled", currentPage === 1);
+                    $container.find(".pdf-next-page").prop("disabled", currentPage === totalPages);
 
-                        (function(num, canvasId) {
-                            pdf.getPage(num).then(function(page) {
-                                let viewport = page.getViewport({ scale: currentScale });
-                                let canvas = document.getElementById(canvasId);
-                                if (!canvas) return;
-                                let context = canvas.getContext('2d');
-                                canvas.height = viewport.height;
-                                canvas.width = viewport.width;
+                    pdf.getPage(currentPage).then(function(page) {
+                        let viewport = page.getViewport({ scale: scale });
+                        let canvas = document.getElementById(pageCanvasId);
+                        if (!canvas) {
+                            isRendering = false;
+                            return;
+                        }
+                        let context = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
 
-                                let renderContext = {
-                                    canvasContext: context,
-                                    viewport: viewport
-                                };
-                                page.render(renderContext);
-                            });
-                        })(pageNum, pageCanvasId);
-                    }
+                        let renderContext = {
+                            canvasContext: context,
+                            viewport: viewport
+                        };
+                        page.render(renderContext).promise.then(function() {
+                            isRendering = false;
+                        }).catch(function() {
+                            isRendering = false;
+                        });
+                    }).catch(function() {
+                        isRendering = false;
+                    });
                 }
 
-                renderAllPages(scale);
+                renderPage(1);
+
+                $container.find(".pdf-next-page").on("click", function() {
+                    if (currentPage < totalPages) renderPage(currentPage + 1);
+                });
+
+                $container.find(".pdf-prev-page").on("click", function() {
+                    if (currentPage > 1) renderPage(currentPage - 1);
+                });
+
+                $container.find(".pdf-page-input").on("change keyup", function(e) {
+                    if (e.type === 'keyup' && e.key !== 'Enter') return;
+                    let p = parseInt($(this).val(), 10);
+                    if (!isNaN(p) && p >= 1 && p <= totalPages) {
+                        renderPage(p);
+                    }
+                });
 
                 $container.find(".pdf-zoom-in").on("click", function() {
-                    if (scale < 3.0) {
+                    if (scale < 3.5) {
                         scale += 0.25;
                         $container.find(".pdf-zoom-level").text(Math.round(scale * 100) + "%");
-                        renderAllPages(scale);
+                        renderPage(currentPage);
                     }
                 });
 
@@ -178,12 +293,11 @@
                     if (scale > 0.5) {
                         scale -= 0.25;
                         $container.find(".pdf-zoom-level").text(Math.round(scale * 100) + "%");
-                        renderAllPages(scale);
+                        renderPage(currentPage);
                     }
                 });
 
             }).catch(function(err) {
-                $spinner.hide();
                 renderPdfFallback(url, cleanName, $container, $spinner, ext);
             });
         }
@@ -398,46 +512,71 @@
         }
 
         $(document).ready(function() {
-            let fileUrl = "{{ file_url }}";
-            let fileName = "{{ file_name|escapejs }}";
-            let ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
+            let rawFileUrl = "{{ file_url }}";
+            let rawFileName = "{{ file_name|escapejs }}";
+
+            let fileUrl = decodeURIComponent(rawFileUrl);
+            let fileName = decodeURIComponent(rawFileName).replace(/^uploads\//i, '').replace(/^files\//i, '');
+            let cleanName = fileName.split('?')[0];
+            let ext = cleanName.includes('.') ? cleanName.split('.').pop().toLowerCase() : '';
 
             let $spinner = $("#viewerLoading");
             let $container = $("#viewerContainer");
 
-            if (ext === 'docx' || ext === 'doc') {
-                let updateProgress = showPreviewProgressCard(fileName, $container, $spinner);
+            function isWordDoc(name) { return name.toLowerCase().match(/\.(docx|doc|dot|dotx)$/i); }
+            function isExcel(name) { return name.toLowerCase().match(/\.(xlsx|xls|csv|ods)$/i); }
+            function isPpt(name) { return name.toLowerCase().match(/\.(pptx|ppt|potx|ppsx)$/i); }
+            function isPdf(name) { return name.toLowerCase().match(/\.(pdf)$/i); }
+            function isImage(name) { return name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|bmp|svg|ico)$/i); }
+            function isVideo(name) { return name.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv|m4v)$/i); }
+            function isAudio(name) { return name.toLowerCase().match(/\.(mp3|wav|ogg|aac|flac|m4a)$/i); }
+            function isTextFile(name) { return name.toLowerCase().match(/\.(txt|log|md|json|js|css|py|html|xml|sh|bat|yaml|yml|ini|env|c|cpp|h|java)$/i); }
+
+            if (isWordDoc(cleanName)) {
+                let updateProgress = showPreviewProgressCard(cleanName, $container, $spinner);
                 fetchWithProgress(fileUrl, updateProgress)
                     .then(buffer => {
-                        if (window.mammoth && ext === 'docx') {
+                        $spinner.hide();
+                        if (window.mammoth && (ext === 'docx' || ext === 'dotx')) {
                             return mammoth.convertToHtml({arrayBuffer: buffer});
                         } else {
-                            throw new Error("Mammoth not available or legacy format");
+                            throw new Error("Legacy binary format or Mammoth converter not loaded");
                         }
                     })
                     .then(result => {
+                        $spinner.hide();
+                        let html = result ? result.value : "";
+                        if (!html || html.trim() === "") {
+                            html = "<p class='text-muted fst-italic text-center py-4'>Empty Word document or no formatted text extracted.</p>";
+                        }
                         $container.html(`
                             <div class="doc-page-container">
-                                ${result.value}
+                                <div class="d-flex align-items-center gap-2 mb-4 pb-3 border-bottom text-primary">
+                                    <i class="bi bi-file-word-fill fs-3"></i>
+                                    <h4 class="fw-bold mb-0 text-dark">${cleanName}</h4>
+                                </div>
+                                <div class="word-body-content">${html}</div>
                             </div>
                         `).show();
                     })
                     .catch(err => {
+                        $spinner.hide();
                         $container.html(`
-                            <div class="text-center py-5 bg-white rounded-4 shadow-sm border p-4 mx-auto" style="max-width: 600px;">
+                            <div class="text-center py-5 bg-white rounded-4 shadow-sm border p-4 mx-auto" style="max-width: 650px;">
                                 <i class="bi bi-file-word text-primary display-3 mb-3 d-block"></i>
-                                <h5 class="fw-bold">${fileName}</h5>
+                                <h5 class="fw-bold">${cleanName}</h5>
                                 <p class="text-muted">Viewing binary Word document (.doc). You can download the file to view in Microsoft Word.</p>
-                                <a href="${fileUrl}" download="${fileName}" class="btn btn-warning rounded-pill px-4 fw-bold">
+                                <a href="${fileUrl}" download="${cleanName}" class="btn btn-warning rounded-pill px-4 fw-bold">
                                     <i class="bi bi-download me-1"></i> Download Word File
                                 </a>
                             </div>
                         `).show();
                     });
-            } else if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
-                let updateProgress = showPreviewProgressCard(fileName, $container, $spinner);
+            } else if (isExcel(cleanName)) {
+                let updateProgress = showPreviewProgressCard(cleanName, $container, $spinner);
                 fetchWithProgress(fileUrl, updateProgress)
                     .then(buffer => {
+                        $spinner.hide();
                         let data = new Uint8Array(buffer);
                         let workbook = XLSX.read(data, {type: 'array'});
                         let firstSheetName = workbook.SheetNames[0];
@@ -453,55 +592,69 @@
                         $container.find("table").addClass("table table-bordered table-striped table-hover text-nowrap mb-0");
                     })
                     .catch(err => {
+                        $spinner.hide();
                         $container.html(`
                             <div class="text-center py-5 bg-white rounded-4 shadow-sm border p-4 mx-auto" style="max-width: 600px;">
                                 <i class="bi bi-file-excel text-success display-3 mb-3 d-block"></i>
-                                <h5 class="fw-bold">${fileName}</h5>
+                                <h5 class="fw-bold">${cleanName}</h5>
                                 <p class="text-muted">Could not render spreadsheet data directly.</p>
-                                <a href="${fileUrl}" download="${fileName}" class="btn btn-warning rounded-pill px-4 fw-bold">
+                                <a href="${fileUrl}" download="${cleanName}" class="btn btn-warning rounded-pill px-4 fw-bold">
                                     <i class="bi bi-download me-1"></i> Download Spreadsheet
                                 </a>
                             </div>
                         `).show();
                     });
-            } else if (ext === 'pptx' || ext === 'ppt') {
-                let updateProgress = showPreviewProgressCard(fileName, $container, $spinner);
+            } else if (isPpt(cleanName)) {
+                let updateProgress = showPreviewProgressCard(cleanName, $container, $spinner);
                 fetchWithProgress(fileUrl, updateProgress)
                     .then(buffer => {
-                        renderPptxSlides(buffer, fileName, $container, $spinner, fileUrl, ext);
+                        $spinner.hide();
+                        renderPptxSlides(buffer, cleanName, $container, $spinner, fileUrl, ext);
                     })
                     .catch(err => {
+                        $spinner.hide();
                         $container.html(`
                             <div class="text-center py-5 bg-white rounded-4 shadow-sm border p-4 mx-auto" style="max-width: 600px;">
                                 <i class="bi bi-file-ppt text-warning display-3 mb-3 d-block"></i>
-                                <h5 class="fw-bold">${fileName}</h5>
+                                <h5 class="fw-bold">${cleanName}</h5>
                                 <p class="text-muted">PowerPoint presentation file ready for download.</p>
-                                <a href="${fileUrl}" download="${fileName}" class="btn btn-warning rounded-pill px-4 fw-bold">
+                                <a href="${fileUrl}" download="${cleanName}" class="btn btn-warning rounded-pill px-4 fw-bold">
                                     <i class="bi bi-download me-1"></i> Download PowerPoint File
                                 </a>
                             </div>
                         `).show();
                     });
-            } else if (ext === 'pdf') {
-                renderPdfDocument(fileUrl, fileName, $container, $spinner, ext);
-            } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
+            } else if (isPdf(cleanName)) {
+                $spinner.hide();
+                renderPdfDocument(fileUrl, cleanName, $container, $spinner, ext);
+            } else if (isImage(cleanName)) {
                 $spinner.hide();
                 $container.html(`
                     <div class="text-center py-3">
                         <img src="${fileUrl}" class="img-fluid rounded-4 shadow-sm" style="max-height: 82vh; object-fit: contain;">
                     </div>
                 `).show();
-            } else if (['mp4', 'webm', 'mov', 'avi'].includes(ext)) {
+            } else if (isVideo(cleanName)) {
                 $spinner.hide();
                 $container.html(`
                     <div class="text-center py-3 max-w-900 mx-auto">
                         <video controls autoplay src="${fileUrl}" style="max-width: 100%; max-height: 82vh; border-radius: 12px;"></video>
                     </div>
                 `).show();
-            } else if (['txt', 'log', 'md', 'json', 'js', 'css', 'py', 'html', 'xml'].includes(ext)) {
-                let updateProgress = showPreviewProgressCard(fileName, $container, $spinner);
+            } else if (isAudio(cleanName)) {
+                $spinner.hide();
+                $container.html(`
+                    <div class="text-center py-4 p-md-5 bg-white rounded-4 shadow-sm border max-w-600 mx-auto">
+                        <i class="bi bi-disc-fill text-info vinyl-spin display-3 mb-3 d-block"></i>
+                        <h6 class="fw-bold text-dark mb-3 text-break">${cleanName}</h6>
+                        <audio controls autoplay src="${fileUrl}" style="width: 100%;" class="shadow-sm rounded-pill"></audio>
+                    </div>
+                `).show();
+            } else if (isTextFile(cleanName)) {
+                let updateProgress = showPreviewProgressCard(cleanName, $container, $spinner);
                 fetchWithProgress(fileUrl, updateProgress)
                     .then(buffer => {
+                        $spinner.hide();
                         let text = new TextDecoder('utf-8').decode(buffer);
                         let safeText = $('<div>').text(text).html();
                         $container.html(`
@@ -511,10 +664,11 @@
                         `).show();
                     })
                     .catch(err => {
+                        $spinner.hide();
                         $container.html(`
                             <div class="text-center py-5 bg-white rounded-4 shadow-sm border p-4 mx-auto" style="max-width: 600px;">
                                 <i class="bi bi-file-earmark-text text-secondary display-3 mb-3 d-block"></i>
-                                <h5 class="fw-bold">${fileName}</h5>
+                                <h5 class="fw-bold">${cleanName}</h5>
                                 <p class="text-muted">Could not load text file content.</p>
                             </div>
                         `).show();
@@ -524,9 +678,9 @@
                 $container.html(`
                     <div class="text-center py-5 bg-white rounded-4 shadow-sm border p-4 mx-auto" style="max-width: 600px;">
                         <i class="bi bi-file-earmark-text text-secondary display-3 mb-3 d-block"></i>
-                        <h5 class="fw-bold">${fileName}</h5>
-                        <p class="text-muted">Direct browser view not available for this file type (${ext.toUpperCase()}).</p>
-                        <a href="${fileUrl}" download="${fileName}" class="btn btn-warning rounded-pill px-4 fw-bold">
+                        <h5 class="fw-bold">${cleanName}</h5>
+                        <p class="text-muted">Direct browser view not available for this file type (${ext ? ext.toUpperCase() : 'FILE'}).</p>
+                        <a href="${fileUrl}" download="${cleanName}" class="btn btn-warning rounded-pill px-4 fw-bold">
                             <i class="bi bi-download me-1"></i> Download File
                         </a>
                     </div>
