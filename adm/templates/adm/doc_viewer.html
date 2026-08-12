@@ -91,8 +91,115 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
     <script>
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        function renderPdfDocument(url, cleanName, $container, $spinner, ext) {
+            $spinner.show();
+            if (!window.pdfjsLib) {
+                renderPdfFallback(url, cleanName, $container, $spinner, ext);
+                return;
+            }
+
+            pdfjsLib.getDocument(url).promise.then(function(pdf) {
+                let totalPages = pdf.numPages;
+                let scale = 1.35;
+                let pagesContainerId = "pdfPagesContainer_" + Math.floor(Math.random() * 100000);
+
+                $spinner.hide();
+                $container.html(`
+                    <div class="w-100 text-center overflow-auto p-4 mx-auto" style="max-height: 85vh; max-width: 1100px; background-color: #525659; border-radius: 12px;">
+                        <div class="d-flex align-items-center justify-content-between mb-3 px-3 py-2 bg-dark text-white rounded-3 shadow-sm mx-auto" style="max-width: 900px;">
+                            <span class="fw-bold text-truncate me-2 fs-5" style="max-width: 400px;">
+                                <i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i>${cleanName}
+                            </span>
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-outline-light btn-sm rounded-circle pdf-zoom-out" title="Zoom Out">
+                                    <i class="bi bi-zoom-out"></i>
+                                </button>
+                                <span class="badge bg-secondary font-monospace pdf-zoom-level">135%</span>
+                                <button type="button" class="btn btn-outline-light btn-sm rounded-circle pdf-zoom-in" title="Zoom In">
+                                    <i class="bi bi-zoom-in"></i>
+                                </button>
+                                <span class="badge bg-danger ms-2 font-monospace px-3 py-1.5 fs-6">${totalPages} Page${totalPages > 1 ? 's' : ''}</span>
+                            </div>
+                        </div>
+                        <div id="${pagesContainerId}" class="d-flex flex-column align-items-center gap-3"></div>
+                    </div>
+                `).show();
+
+                let $pagesWrapper = $("#" + pagesContainerId);
+
+                function renderAllPages(currentScale) {
+                    $pagesWrapper.html('');
+                    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+                        let pageCanvasId = `${pagesContainerId}_page_${pageNum}`;
+                        $pagesWrapper.append(`
+                            <div class="bg-white shadow-lg rounded-2 overflow-hidden mb-3 position-relative" style="max-width: 100%;">
+                                <canvas id="${pageCanvasId}" class="d-block mx-auto"></canvas>
+                                <div class="text-end px-3 py-1.5 bg-light text-muted small border-top font-monospace">Page ${pageNum} of ${totalPages}</div>
+                            </div>
+                        `);
+
+                        (function(num, canvasId) {
+                            pdf.getPage(num).then(function(page) {
+                                let viewport = page.getViewport({ scale: currentScale });
+                                let canvas = document.getElementById(canvasId);
+                                if (!canvas) return;
+                                let context = canvas.getContext('2d');
+                                canvas.height = viewport.height;
+                                canvas.width = viewport.width;
+
+                                let renderContext = {
+                                    canvasContext: context,
+                                    viewport: viewport
+                                };
+                                page.render(renderContext);
+                            });
+                        })(pageNum, pageCanvasId);
+                    }
+                }
+
+                renderAllPages(scale);
+
+                $container.find(".pdf-zoom-in").on("click", function() {
+                    if (scale < 3.0) {
+                        scale += 0.25;
+                        $container.find(".pdf-zoom-level").text(Math.round(scale * 100) + "%");
+                        renderAllPages(scale);
+                    }
+                });
+
+                $container.find(".pdf-zoom-out").on("click", function() {
+                    if (scale > 0.5) {
+                        scale -= 0.25;
+                        $container.find(".pdf-zoom-level").text(Math.round(scale * 100) + "%");
+                        renderAllPages(scale);
+                    }
+                });
+
+            }).catch(function(err) {
+                $spinner.hide();
+                renderPdfFallback(url, cleanName, $container, $spinner, ext);
+            });
+        }
+
+        function renderPdfFallback(url, cleanName, $container, $spinner, ext) {
+            $spinner.hide();
+            $container.html(`
+                <div class="w-100 rounded-4 overflow-hidden shadow-sm border bg-white mx-auto" style="height: 85vh; max-width: 1100px;">
+                    <object data="${url}#toolbar=1" type="application/pdf" width="100%" height="100%">
+                        <embed src="${url}#toolbar=1" type="application/pdf" width="100%" height="100%" />
+                        <iframe src="${url}" width="100%" height="100%" style="border:none;"></iframe>
+                    </object>
+                </div>
+            `).show();
+        }
+
         function renderPptxSlides(buffer, cleanName, $container, $spinner, fileUrl, ext) {
             if (!window.JSZip) {
                 $spinner.hide();
@@ -299,11 +406,8 @@
             let $container = $("#viewerContainer");
 
             if (ext === 'docx' || ext === 'doc') {
-                fetch(fileUrl)
-                    .then(res => {
-                        if (!res.ok) throw new Error("Could not load file");
-                        return res.arrayBuffer();
-                    })
+                let updateProgress = showPreviewProgressCard(fileName, $container, $spinner);
+                fetchWithProgress(fileUrl, updateProgress)
                     .then(buffer => {
                         if (window.mammoth && ext === 'docx') {
                             return mammoth.convertToHtml({arrayBuffer: buffer});
@@ -312,7 +416,6 @@
                         }
                     })
                     .then(result => {
-                        $spinner.hide();
                         $container.html(`
                             <div class="doc-page-container">
                                 ${result.value}
@@ -320,7 +423,6 @@
                         `).show();
                     })
                     .catch(err => {
-                        $spinner.hide();
                         $container.html(`
                             <div class="text-center py-5 bg-white rounded-4 shadow-sm border p-4 mx-auto" style="max-width: 600px;">
                                 <i class="bi bi-file-word text-primary display-3 mb-3 d-block"></i>
@@ -333,11 +435,8 @@
                         `).show();
                     });
             } else if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
-                fetch(fileUrl)
-                    .then(res => {
-                        if (!res.ok) throw new Error("Could not load spreadsheet");
-                        return res.arrayBuffer();
-                    })
+                let updateProgress = showPreviewProgressCard(fileName, $container, $spinner);
+                fetchWithProgress(fileUrl, updateProgress)
                     .then(buffer => {
                         let data = new Uint8Array(buffer);
                         let workbook = XLSX.read(data, {type: 'array'});
@@ -345,7 +444,6 @@
                         let worksheet = workbook.Sheets[firstSheetName];
                         let htmlTable = XLSX.utils.sheet_to_html(worksheet);
 
-                        $spinner.hide();
                         $container.html(`
                             <div class="bg-white p-4 rounded-4 shadow-sm border mx-auto" style="max-width: 1100px;">
                                 <div class="mb-3 fw-bold text-success"><i class="bi bi-file-excel-fill me-2"></i> Sheet: ${firstSheetName}</div>
@@ -355,7 +453,6 @@
                         $container.find("table").addClass("table table-bordered table-striped table-hover text-nowrap mb-0");
                     })
                     .catch(err => {
-                        $spinner.hide();
                         $container.html(`
                             <div class="text-center py-5 bg-white rounded-4 shadow-sm border p-4 mx-auto" style="max-width: 600px;">
                                 <i class="bi bi-file-excel text-success display-3 mb-3 d-block"></i>
@@ -368,16 +465,12 @@
                         `).show();
                     });
             } else if (ext === 'pptx' || ext === 'ppt') {
-                fetch(fileUrl)
-                    .then(res => {
-                        if (!res.ok) throw new Error("Could not load presentation");
-                        return res.arrayBuffer();
-                    })
+                let updateProgress = showPreviewProgressCard(fileName, $container, $spinner);
+                fetchWithProgress(fileUrl, updateProgress)
                     .then(buffer => {
                         renderPptxSlides(buffer, fileName, $container, $spinner, fileUrl, ext);
                     })
                     .catch(err => {
-                        $spinner.hide();
                         $container.html(`
                             <div class="text-center py-5 bg-white rounded-4 shadow-sm border p-4 mx-auto" style="max-width: 600px;">
                                 <i class="bi bi-file-ppt text-warning display-3 mb-3 d-block"></i>
@@ -390,15 +483,7 @@
                         `).show();
                     });
             } else if (ext === 'pdf') {
-                $spinner.hide();
-                $container.html(`
-                    <div class="w-100 rounded-4 overflow-hidden shadow-sm border bg-white mx-auto" style="height: 85vh; max-width: 1100px;">
-                        <object data="${fileUrl}#toolbar=1" type="application/pdf" width="100%" height="100%">
-                            <embed src="${fileUrl}#toolbar=1" type="application/pdf" width="100%" height="100%" />
-                            <iframe src="${fileUrl}" width="100%" height="100%" style="border:none;"></iframe>
-                        </object>
-                    </div>
-                `).show();
+                renderPdfDocument(fileUrl, fileName, $container, $spinner, ext);
             } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
                 $spinner.hide();
                 $container.html(`
@@ -414,14 +499,23 @@
                     </div>
                 `).show();
             } else if (['txt', 'log', 'md', 'json', 'js', 'css', 'py', 'html', 'xml'].includes(ext)) {
-                fetch(fileUrl)
-                    .then(res => res.text())
-                    .then(text => {
-                        $spinner.hide();
+                let updateProgress = showPreviewProgressCard(fileName, $container, $spinner);
+                fetchWithProgress(fileUrl, updateProgress)
+                    .then(buffer => {
+                        let text = new TextDecoder('utf-8').decode(buffer);
                         let safeText = $('<div>').text(text).html();
                         $container.html(`
-                            <div class="bg-dark text-light p-4 rounded-4 shadow-sm mx-auto" style="max-width: 1000px; max-height: 82vh; overflow: auto;">
-                                <pre class="mb-0" style="font-family: monospace; white-space: pre-wrap;"><code>${safeText}</code></pre>
+                            <div class="bg-dark p-4 rounded-4 shadow-sm border mx-auto" style="max-width: 1100px;">
+                                <pre class="text-light mb-0" style="max-height: 78vh; overflow: auto; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.9rem; white-space: pre-wrap; word-break: break-all;"><code>${safeText}</code></pre>
+                            </div>
+                        `).show();
+                    })
+                    .catch(err => {
+                        $container.html(`
+                            <div class="text-center py-5 bg-white rounded-4 shadow-sm border p-4 mx-auto" style="max-width: 600px;">
+                                <i class="bi bi-file-earmark-text text-secondary display-3 mb-3 d-block"></i>
+                                <h5 class="fw-bold">${fileName}</h5>
+                                <p class="text-muted">Could not load text file content.</p>
                             </div>
                         `).show();
                     });

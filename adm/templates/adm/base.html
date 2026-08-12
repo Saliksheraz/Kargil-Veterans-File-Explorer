@@ -414,6 +414,8 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- JSZip for PowerPoint (.pptx) Slide Deck Parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- PDF.js for Reliable PDF Canvas Rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
     <!-- Global Helper JS for File Explorer & Preview Modal -->
     <script>
@@ -474,6 +476,84 @@
             return "bi-file-earmark-fill text-secondary";
         }
 
+        function formatBytes(bytes) {
+            if (bytes === 0 || !bytes) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function showPreviewProgressCard(cleanName, $content, $spinner) {
+            if ($spinner) $spinner.hide();
+            let cardId = "previewProgressCard_" + Math.floor(Math.random() * 100000);
+            $content.html(`
+                <div id="${cardId}" class="text-center py-5 px-4 bg-white rounded-4 w-100 my-3 border shadow-sm mx-auto d-flex flex-column justify-content-center align-items-center" style="max-width: 540px; min-height: 280px;">
+                    <div class="mb-3 text-warning">
+                        <i class="bi bi-cloud-arrow-down-fill display-3"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-1 text-break">${cleanName}</h5>
+                    <p class="text-muted small mb-3">Downloading file content for preview...</p>
+
+                    <div class="progress rounded-pill mb-2 shadow-xs w-100" style="height: 20px; background-color: #e2e8f0;">
+                        <div class="preview-progress-bar progress-bar progress-bar-striped progress-bar-animated bg-warning text-dark font-monospace fw-bold extra-small" role="progressbar" style="width: 0%;">
+                            0%
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between text-muted extra-small font-monospace px-1 w-100">
+                        <span class="preview-progress-downloaded">0 MB</span>
+                        <span class="preview-progress-total">Loading...</span>
+                    </div>
+                </div>
+            `).show();
+
+            let $card = $("#" + cardId);
+            return function updateProgress(percent, loaded, total) {
+                if (total && total > 0) {
+                    let pct = percent !== null ? percent : Math.round((loaded / total) * 100);
+                    $card.find(".preview-progress-bar").css("width", pct + "%").text(pct + "%");
+                    $card.find(".preview-progress-downloaded").text(formatBytes(loaded));
+                    $card.find(".preview-progress-total").text(formatBytes(total));
+                } else {
+                    $card.find(".preview-progress-bar").css("width", "100%").text("Downloading...");
+                    $card.find(".preview-progress-downloaded").text(formatBytes(loaded));
+                    $card.find(".preview-progress-total").text("Streaming...");
+                }
+            };
+        }
+
+        function fetchWithProgress(url, onProgress) {
+            return new Promise(function(resolve, reject) {
+                let xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.responseType = 'arraybuffer';
+
+                xhr.onprogress = function(e) {
+                    if (e.lengthComputable) {
+                        let percent = Math.round((e.loaded / e.total) * 100);
+                        if (onProgress) onProgress(percent, e.loaded, e.total);
+                    } else {
+                        if (onProgress) onProgress(null, e.loaded, 0);
+                    }
+                };
+
+                xhr.onload = function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve(xhr.response);
+                    } else {
+                        reject(new Error("HTTP Error " + xhr.status));
+                    }
+                };
+
+                xhr.onerror = function() {
+                    reject(new Error("Network Error"));
+                };
+
+                xhr.send();
+            });
+        }
+
         function showPreviewErrorCard(title, message, cleanName, url, ext) {
             let $content = $("#filePreviewContent");
             let $spinner = $("#previewLoadingSpinner");
@@ -498,6 +578,124 @@
                     </div>
                 </div>
             `);
+        }
+
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        function renderPdfDocument(url, cleanName, $container, $spinner, ext) {
+            $spinner.show();
+            if (!window.pdfjsLib) {
+                renderPdfFallback(url, cleanName, $container, $spinner, ext);
+                return;
+            }
+
+            pdfjsLib.getDocument(url).promise.then(function(pdf) {
+                let totalPages = pdf.numPages;
+                let scale = 1.2;
+                let pagesContainerId = "pdfPagesContainer_" + Math.floor(Math.random() * 100000);
+
+                $spinner.hide();
+                $container.html(`
+                    <div class="w-100 text-center overflow-auto p-3" style="max-height: 68vh; background-color: #525659; border-radius: 8px;">
+                        <div class="d-flex align-items-center justify-content-between mb-3 px-3 py-2 bg-dark text-white rounded-3 shadow-sm mx-auto" style="max-width: 840px;">
+                            <span class="fw-bold text-truncate me-2" style="max-width: 320px;">
+                                <i class="bi bi-file-earmark-pdf-fill text-danger me-2 fs-5"></i>${cleanName}
+                            </span>
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-outline-light btn-sm rounded-circle pdf-zoom-out" title="Zoom Out">
+                                    <i class="bi bi-zoom-out"></i>
+                                </button>
+                                <span class="badge bg-secondary font-monospace pdf-zoom-level">120%</span>
+                                <button type="button" class="btn btn-outline-light btn-sm rounded-circle pdf-zoom-in" title="Zoom In">
+                                    <i class="bi bi-zoom-in"></i>
+                                </button>
+                                <span class="badge bg-danger ms-2 font-monospace px-3 py-1.5">${totalPages} Page${totalPages > 1 ? 's' : ''}</span>
+                            </div>
+                        </div>
+                        <div id="${pagesContainerId}" class="d-flex flex-column align-items-center gap-3"></div>
+                    </div>
+                `).show();
+
+                let $pagesWrapper = $("#" + pagesContainerId);
+
+                function renderAllPages(currentScale) {
+                    $pagesWrapper.html('');
+                    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+                        let pageCanvasId = `${pagesContainerId}_page_${pageNum}`;
+                        $pagesWrapper.append(`
+                            <div class="bg-white shadow-lg rounded-2 overflow-hidden mb-2 position-relative" style="max-width: 100%;">
+                                <canvas id="${pageCanvasId}" class="d-block mx-auto"></canvas>
+                                <div class="text-end px-2 py-1 bg-light text-muted extra-small border-top font-monospace">Page ${pageNum} of ${totalPages}</div>
+                            </div>
+                        `);
+
+                        (function(num, canvasId) {
+                            pdf.getPage(num).then(function(page) {
+                                let viewport = page.getViewport({ scale: currentScale });
+                                let canvas = document.getElementById(canvasId);
+                                if (!canvas) return;
+                                let context = canvas.getContext('2d');
+                                canvas.height = viewport.height;
+                                canvas.width = viewport.width;
+
+                                let renderContext = {
+                                    canvasContext: context,
+                                    viewport: viewport
+                                };
+                                page.render(renderContext);
+                            });
+                        })(pageNum, pageCanvasId);
+                    }
+                }
+
+                renderAllPages(scale);
+
+                $container.find(".pdf-zoom-in").on("click", function() {
+                    if (scale < 2.5) {
+                        scale += 0.2;
+                        $container.find(".pdf-zoom-level").text(Math.round(scale * 100) + "%");
+                        renderAllPages(scale);
+                    }
+                });
+
+                $container.find(".pdf-zoom-out").on("click", function() {
+                    if (scale > 0.5) {
+                        scale -= 0.2;
+                        $container.find(".pdf-zoom-level").text(Math.round(scale * 100) + "%");
+                        renderAllPages(scale);
+                    }
+                });
+
+            }).catch(function(err) {
+                $spinner.hide();
+                renderPdfFallback(url, cleanName, $container, $spinner, ext);
+            });
+        }
+
+        function renderPdfFallback(url, cleanName, $container, $spinner, ext) {
+            $spinner.hide();
+            $container.html(`
+                <div class="w-100 rounded-3 overflow-hidden shadow-sm border bg-white" style="height: 68vh; min-height: 380px;">
+                    <object data="${url}#toolbar=1&view=FitH" type="application/pdf" width="100%" height="100%" style="width: 100%; height: 100%;">
+                        <embed src="${url}#toolbar=1&view=FitH" type="application/pdf" width="100%" height="100%" />
+                        <iframe src="${url}" width="100%" height="100%" style="border: none;">
+                            <div class="p-4 text-center">
+                                <i class="bi bi-file-earmark-pdf text-danger display-4 d-block mb-3"></i>
+                                <h5 class="fw-bold">${cleanName}</h5>
+                                <p class="text-muted small">Your browser does not support inline PDF viewing.</p>
+                                <a href="${url}" target="_blank" class="btn btn-outline-dark rounded-pill px-4 me-2">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i> Open in New Tab
+                                </a>
+                                <a href="${url}" download="${cleanName}" class="btn btn-gold-action rounded-pill px-4">
+                                    <i class="bi bi-download me-1"></i> Download PDF
+                                </a>
+                            </div>
+                        </iframe>
+                    </object>
+                </div>
+            `).show();
         }
 
         function renderPptxSlides(buffer, cleanName, $container, $spinner, fileUrl, ext) {
@@ -716,36 +914,10 @@
                     showPreviewErrorCard("Unable to Load Image Preview", "The image file could not be loaded. It may be corrupted, missing from server storage, or in an unsupported image format.", cleanName, url, ext);
                 });
             } else if (isPdf(cleanName)) {
-                $spinner.show();
-                fetch(url, { method: 'HEAD' })
-                    .then(response => {
-                        $spinner.hide();
-                        if (!response.ok) {
-                            showPreviewErrorCard("Unable to Load PDF Preview", "The PDF file could not be found or retrieved from server storage.", cleanName, url, ext);
-                            return;
-                        }
-                        $content.html(`
-                            <div class="w-100 rounded-3 overflow-hidden shadow-sm border bg-white" style="height: 68vh; min-height: 380px;">
-                                <object data="${url}#toolbar=1&view=FitH" type="application/pdf" width="100%" height="100%" style="width: 100%; height: 100%;">
-                                    <embed src="${url}#toolbar=1&view=FitH" type="application/pdf" width="100%" height="100%" />
-                                    <iframe src="${url}" width="100%" height="100%" style="border: none;">
-                                        <p class="p-3 text-center">Your browser does not support embedded PDFs. <a href="${url}" target="_blank">Click here to open PDF</a></p>
-                                    </iframe>
-                                </object>
-                            </div>
-                        `);
-                    })
-                    .catch(err => {
-                        $spinner.hide();
-                        showPreviewErrorCard("Unable to Load PDF Preview", "Network error or file missing from storage.", cleanName, url, ext);
-                    });
+                renderPdfDocument(url, cleanName, $content, $spinner, ext);
             } else if (isWordDoc(cleanName)) {
-                $spinner.show();
-                fetch(url)
-                    .then(response => {
-                        if (!response.ok) throw new Error("Could not load Word file");
-                        return response.arrayBuffer();
-                    })
+                let updateProgress = showPreviewProgressCard(cleanName, $content, $spinner);
+                fetchWithProgress(url, updateProgress)
                     .then(arrayBuffer => {
                         if (window.mammoth && ext.toLowerCase() === 'docx') {
                             return mammoth.convertToHtml({arrayBuffer: arrayBuffer});
@@ -784,12 +956,8 @@
                         `);
                     });
             } else if (isPpt(cleanName)) {
-                $spinner.show();
-                fetch(url)
-                    .then(response => {
-                        if (!response.ok) throw new Error("Could not load presentation file");
-                        return response.arrayBuffer();
-                    })
+                let updateProgress = showPreviewProgressCard(cleanName, $content, $spinner);
+                fetchWithProgress(url, updateProgress)
                     .then(arrayBuffer => {
                         renderPptxSlides(arrayBuffer, cleanName, $content, $spinner, url, ext);
                     })
@@ -798,12 +966,8 @@
                         showPreviewErrorCard("PowerPoint Presentation", "PowerPoint file ready for viewing or download.", cleanName, url, ext);
                     });
             } else if (isExcel(cleanName)) {
-                $spinner.show();
-                fetch(url)
-                    .then(response => {
-                        if (!response.ok) throw new Error("Could not load spreadsheet file");
-                        return response.arrayBuffer();
-                    })
+                let updateProgress = showPreviewProgressCard(cleanName, $content, $spinner);
+                fetchWithProgress(url, updateProgress)
                     .then(arrayBuffer => {
                         if (window.XLSX) {
                             let data = new Uint8Array(arrayBuffer);
@@ -861,14 +1025,11 @@
                     showPreviewErrorCard("Unable to Play Audio Preview", "The audio file could not be played. It may be missing from server storage, corrupted, or formatted in an unsupported audio format.", cleanName, url, ext);
                 });
             } else if (isTextFile(cleanName)) {
-                $spinner.show();
-                fetch(url)
-                    .then(response => {
-                        if (!response.ok) throw new Error("Could not load file text");
-                        return response.text();
-                    })
-                    .then(text => {
+                let updateProgress = showPreviewProgressCard(cleanName, $content, $spinner);
+                fetchWithProgress(url, updateProgress)
+                    .then(arrayBuffer => {
                         $spinner.hide();
+                        let text = new TextDecoder('utf-8').decode(arrayBuffer);
                         let safeText = $('<div>').text(text).html();
                         $content.html(`
                             <div class="w-100 text-start">
@@ -881,7 +1042,6 @@
                         showPreviewErrorCard("Unable to Load Text Preview", "The text file could not be loaded or retrieved from server storage.", cleanName, url, ext);
                     });
             } else {
-                // Fallback for non-previewable files (e.g. Office docs, Zip archives, binaries)
                 $content.html(`
                     <div class="text-center py-5 px-4 bg-light rounded-4 w-100 my-2 border shadow-sm" style="max-width: 600px;">
                         <div class="mb-3">

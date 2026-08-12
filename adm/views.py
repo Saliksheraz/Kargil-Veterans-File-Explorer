@@ -6,7 +6,10 @@ from django.http import HttpResponse, JsonResponse, FileResponse, Http404
 from django.contrib.auth.decorators import login_required
 from adm.models import Folders, Files
 
+from django.views.decorators.clickjacking import xframe_options_sameorigin
+
 @login_required
+@xframe_options_sameorigin
 def serve_media(request, path):
     file_path = os.path.join(settings.MEDIA_ROOT, path)
     if not os.path.exists(file_path) or os.path.isdir(file_path):
@@ -19,11 +22,13 @@ def serve_media(request, path):
     response = FileResponse(open(file_path, 'rb'), content_type=content_type)
     file_name = os.path.basename(file_path)
     
-    # Inline disposition forces browser to display file in new tab instead of downloading
+    # Inline disposition forces browser to display file in browser instead of downloading
     response['Content-Disposition'] = f'inline; filename="{file_name}"'
+    response['X-Frame-Options'] = 'SAMEORIGIN'
     return response
 
 @login_required
+@xframe_options_sameorigin
 def doc_viewer(request):
     file_url = request.GET.get('url', '')
     file_name = request.GET.get('name', '')
