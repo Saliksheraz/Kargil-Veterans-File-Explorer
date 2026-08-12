@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1b3022" />
+      <stop offset="100%" stop-color="#2c4c36" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f39c12" />
+      <stop offset="100%" stop-color="#d4af37" />
+    </linearGradient>
+  </defs>
+  <!-- Shield Base -->
+  <path d="M 32 4 L 56 12 V 32 C 56 46 44 57 32 60 C 20 57 8 46 8 32 V 12 Z" fill="url(#shieldGrad)" stroke="url(#goldGrad)" stroke-width="3" />
+  <!-- Folder Icon -->
+  <path d="M 20 22 C 18.9 22 18 22.9 18 24 V 42 C 18 43.1 18.9 44 20 44 H 44 C 45.1 44 46 43.1 46 42 V 28 C 46 26.9 45.1 26 44 26 H 33 L 30 22 Z" fill="url(#goldGrad)" />
+  <!-- Honor Star -->
+  <polygon points="32,29 33.5,33.5 38,33.5 34.3,36.2 35.7,40.5 32,37.8 28.3,40.5 29.7,36.2 26,33.5 30.5,33.5" fill="#1b3022" />
+</svg>

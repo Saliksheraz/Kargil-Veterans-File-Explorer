@@ -391,6 +391,26 @@
     
     <div class="d-flex align-items-center gap-2">
         {% if folders or files %}
+        <!-- Sort Control Dropdown -->
+        <div class="dropdown me-1 sort-dropdown-container">
+            <button class="btn btn-outline-secondary btn-sm rounded-pill dropdown-toggle px-3" type="button" id="sortDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-sort-down me-1"></i> <span id="currentSortLabel">Name (A-Z)</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end sort-dropdown-menu shadow border-0 rounded-3 mt-1" aria-labelledby="sortDropdownBtn">
+                <li><h6 class="dropdown-header text-uppercase extra-small fw-bold">Sort By</h6></li>
+                <li><a class="dropdown-item sort-option active" href="#" data-sort="name" data-dir="asc"><i class="bi bi-sort-alpha-down me-2 text-primary"></i> Name (A to Z)</a></li>
+                <li><a class="dropdown-item sort-option" href="#" data-sort="name" data-dir="desc"><i class="bi bi-sort-alpha-down-alt me-2 text-primary"></i> Name (Z to A)</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item sort-option" href="#" data-sort="created" data-dir="desc"><i class="bi bi-calendar-event me-2 text-info"></i> Date (Newest First)</a></li>
+                <li><a class="dropdown-item sort-option" href="#" data-sort="created" data-dir="asc"><i class="bi bi-calendar-event-fill me-2 text-info"></i> Date (Oldest First)</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item sort-option" href="#" data-sort="size" data-dir="desc"><i class="bi bi-sort-numeric-down-alt me-2 text-success"></i> Size (Largest First)</a></li>
+                <li><a class="dropdown-item sort-option" href="#" data-sort="size" data-dir="asc"><i class="bi bi-sort-numeric-down me-2 text-success"></i> Size (Smallest First)</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item sort-option" href="#" data-sort="type" data-dir="asc"><i class="bi bi-folder-fill me-2 text-warning"></i> Type (Folders First)</a></li>
+            </ul>
+        </div>
+
         <div class="view-toggle-group me-2">
             <button class="view-toggle-btn active" id="btn-grid-view" title="Grid View">
                 <i class="bi bi-grid-fill"></i>
@@ -432,7 +452,7 @@
     <div class="row g-4">
         <!-- FOLDERS -->
         {% for folder in folders %}
-        <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+        <div class="col-6 col-sm-4 col-md-3 col-lg-2 grid-item-col" data-sort-name="{{ folder.name|lower }}" data-sort-type="folder" data-sort-size="{{ folder.total_size }}" data-sort-files="{{ folder.file_count }}" data-sort-created="{{ folder.created_at|date:'U'|default:'0' }}">
             <div class="folder-card card-transition" data-name="{{ folder.name }}" data-id="{{ folder.id }}" data-files-json="{{ folder.all_files_json }}">
                 <form method="post" action="{% url 'delete_folder' folder.id %}" class="d-inline">
                     {% csrf_token %}
@@ -459,7 +479,7 @@
 
         <!-- FILES -->
         {% for file_inst in files %}
-        <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+        <div class="col-6 col-sm-4 col-md-3 col-lg-2 grid-item-col" data-sort-name="{{ file_inst.file.name|cut:'uploads/'|lower }}" data-sort-type="file" data-sort-size="{{ file_inst.file_size }}" data-sort-files="0" data-sort-created="{{ file_inst.created_at|date:'U'|default:'0' }}">
             <div class="item-card file-card card-transition" data-url="{{ file_inst.file.url }}"
                 data-name="{{ file_inst.file.name }}" data-size="{{ file_inst.file_size_formatted }}">
                 <form method="post" action="{% url 'delete_file' file_inst.id %}" class="d-inline">
@@ -499,7 +519,7 @@
             <tbody id="details-table-body">
                 <!-- FOLDERS -->
                 {% for folder in folders %}
-                <tr class="details-folder-row" data-id="{{ folder.id }}" data-name="{{ folder.name }}" data-type="Folder" data-size="{{ folder.total_size }}" data-files="{{ folder.file_count }}" data-created="{{ folder.created_at|date:'Y-m-d H:i:s' }}" data-files-json="{{ folder.all_files_json }}">
+                <tr class="details-folder-row" data-id="{{ folder.id }}" data-name="{{ folder.name }}" data-type="Folder" data-size="{{ folder.total_size }}" data-files="{{ folder.file_count }}" data-created="{{ folder.created_at|date:'Y-m-d H:i:s' }}" data-files-json="{{ folder.all_files_json }}" data-sort-name="{{ folder.name|lower }}" data-sort-type="folder" data-sort-size="{{ folder.total_size }}" data-sort-files="{{ folder.file_count }}" data-sort-created="{{ folder.created_at|date:'U'|default:'0' }}">
                     <td class="text-start">
                         <div class="details-table-name-wrapper">
                             <div class="details-table-icon">
@@ -534,7 +554,7 @@
 
                 <!-- FILES -->
                 {% for file_inst in files %}
-                <tr class="details-file-row" data-url="{{ file_inst.file.url }}" data-name="{{ file_inst.file.name|cut:'uploads/' }}" data-type="{{ file_inst.file.name|slice:'-4:'|lower }}" data-size="{{ file_inst.file_size }}" data-size-formatted="{{ file_inst.file_size_formatted }}" data-files="-1" data-created="{{ file_inst.created_at|date:'Y-m-d H:i:s' }}">
+                <tr class="details-file-row" data-url="{{ file_inst.file.url }}" data-name="{{ file_inst.file.name|cut:'uploads/' }}" data-type="{{ file_inst.file.name|slice:'-4:'|lower }}" data-size="{{ file_inst.file_size }}" data-size-formatted="{{ file_inst.file_size_formatted }}" data-files="-1" data-created="{{ file_inst.created_at|date:'Y-m-d H:i:s' }}" data-sort-name="{{ file_inst.file.name|cut:'uploads/'|lower }}" data-sort-type="file" data-sort-size="{{ file_inst.file_size }}" data-sort-files="0" data-sort-created="{{ file_inst.created_at|date:'U'|default:'0' }}">
                     <td class="text-start">
                         <div class="details-table-name-wrapper">
                             <div class="details-table-icon table-file-preview-container" data-name="{{ file_inst.file.name }}" data-url="{{ file_inst.file.url }}">

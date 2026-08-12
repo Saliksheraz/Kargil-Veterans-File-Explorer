@@ -1,7 +1,39 @@
+import mimetypes
+import os
+from django.conf import settings
 from django.shortcuts import render, redirect
-from adm.models import Folders, Files
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, FileResponse, Http404
 from django.contrib.auth.decorators import login_required
+from adm.models import Folders, Files
+
+@login_required
+def serve_media(request, path):
+    file_path = os.path.join(settings.MEDIA_ROOT, path)
+    if not os.path.exists(file_path) or os.path.isdir(file_path):
+        raise Http404("File not found")
+        
+    content_type, _ = mimetypes.guess_type(file_path)
+    if not content_type:
+        content_type = 'application/octet-stream'
+        
+    response = FileResponse(open(file_path, 'rb'), content_type=content_type)
+    file_name = os.path.basename(file_path)
+    
+    # Inline disposition forces browser to display file in new tab instead of downloading
+    response['Content-Disposition'] = f'inline; filename="{file_name}"'
+    return response
+
+@login_required
+def doc_viewer(request):
+    file_url = request.GET.get('url', '')
+    file_name = request.GET.get('name', '')
+    if not file_name and file_url:
+        file_name = os.path.basename(file_url)
+    clean_name = file_name.replace('uploads/', '').replace('files/', '')
+    return render(request, "adm/doc_viewer.html", {
+        "file_url": file_url,
+        "file_name": clean_name
+    })
 
 @login_required
 def index(request):
