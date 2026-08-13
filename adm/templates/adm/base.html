@@ -898,24 +898,42 @@
                             let relsParser = new DOMParser();
                             let relsDoc = relsParser.parseFromString(relsXmlText, "text/xml");
                             let relNodes = relsDoc.getElementsByTagName("*");
+                            let supportedFormats = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+
                             for (let r = 0; r < relNodes.length; r++) {
                                 let target = relNodes[r].getAttribute("Target") || "";
                                 if (target.includes("media/")) {
                                     let imgName = target.split("media/").pop();
-                                    let mediaFile = zip.file(`ppt/media/${imgName}`);
-                                    if (mediaFile) {
-                                        let fileExt = imgName.split('.').pop().toLowerCase();
-                                        let mime = (fileExt === 'jpg' || fileExt === 'jpeg') ? 'image/jpeg' : (fileExt === 'png' ? 'image/png' : 'image/' + fileExt);
-                                        let imgP = mediaFile.async("base64").then(function(b64) {
-                                            slideImages.push(`data:${mime};base64,${b64}`);
-                                        });
-                                        imagePromises.push(imgP);
+                                    let fileExt = imgName.split('.').pop().toLowerCase();
+
+                                    // Only process supported image formats and skip videos/audios/binaries
+                                    if (supportedFormats.includes(fileExt)) {
+                                        let mediaFile = zip.file(`ppt/media/${imgName}`);
+                                        
+                                        // Skip single images larger than 10 MB to prevent V8 base64 memory crash
+                                        let sizeInBytes = 0;
+                                        if (mediaFile && mediaFile._data && mediaFile._data.uncompressedSize) {
+                                            sizeInBytes = mediaFile._data.uncompressedSize;
+                                        }
+
+                                        if (mediaFile && (sizeInBytes === 0 || sizeInBytes < 10 * 1024 * 1024)) {
+                                            let mime = (fileExt === 'jpg' || fileExt === 'jpeg') ? 'image/jpeg' : (fileExt === 'png' ? 'image/png' : 'image/' + fileExt);
+                                            let imgP = mediaFile.async("base64").then(function(b64) {
+                                                slideImages.push(`data:${mime};base64,${b64}`);
+                                            }).catch(function(e) {
+                                                // Ignore individual image extraction errors
+                                            });
+                                            imagePromises.push(imgP);
+                                        }
                                     }
                                 }
                             }
                         }
 
-                        Promise.all(imagePromises).then(function() {
+                        // Safety Timeout Guard (2.5 seconds): Never hang on Loading Slide X
+                        let mediaTimeout = new Promise(function(resolve) { setTimeout(resolve, 2500); });
+
+                        Promise.race([Promise.all(imagePromises), mediaTimeout]).then(function() {
                             let title = slideTexts.length > 0 ? slideTexts[0] : `Slide ${slideNum}`;
                             let bodyTexts = slideTexts.slice(1);
 
