@@ -580,20 +580,71 @@
             `);
         }
 
+        function fetchTextChunkWithProgress(url, maxBytes, onProgress) {
+            return new Promise(function(resolve, reject) {
+                let xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                if (maxBytes) {
+                    xhr.setRequestHeader('Range', 'bytes=0-' + (maxBytes - 1));
+                }
+
+                xhr.onprogress = function(e) {
+                    if (e.lengthComputable) {
+                        let percent = Math.round((e.loaded / e.total) * 100);
+                        if (onProgress) onProgress(percent, e.loaded, e.total);
+                    } else {
+                        if (onProgress) onProgress(null, e.loaded, 0);
+                    }
+                };
+
+                xhr.onload = function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        let isPartial = (xhr.status === 206);
+                        let totalBytes = 0;
+                        let contentRange = xhr.getResponseHeader('Content-Range');
+                        if (contentRange && contentRange.includes('/')) {
+                            totalBytes = parseInt(contentRange.split('/')[1], 10) || 0;
+                        }
+                        resolve({
+                            text: xhr.responseText,
+                            isPartial: isPartial,
+                            loadedBytes: xhr.responseText ? xhr.responseText.length : 0,
+                            totalBytes: totalBytes
+                        });
+                    } else {
+                        reject(new Error("HTTP Error " + xhr.status));
+                    }
+                };
+
+                xhr.onerror = function() {
+                    reject(new Error("Network Error"));
+                };
+
+                xhr.send();
+            });
+        }
+
         if (window.pdfjsLib) {
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         }
 
         function renderPdfDocument(url, cleanName, $container, $spinner, ext) {
-            let updateProgress = showPreviewProgressCard(cleanName, $container, $spinner);
+            $spinner.show();
+            if (!window.pdfjsLib) {
+                renderPdfFallback(url, cleanName, $container, $spinner, ext);
+                return;
+            }
 
-            fetchWithProgress(url, updateProgress).then(function(arrayBuffer) {
-                if (!window.pdfjsLib) {
-                    renderPdfFallback(url, cleanName, $container, $spinner, ext);
-                    return;
-                }
-                return pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            }).then(function(pdf) {
+            // PDF.js Chunked HTTP Range Streaming - loads only active page chunks in RAM
+            let pdfTask = pdfjsLib.getDocument({
+                url: url,
+                rangeChunkSize: 65536,
+                disableAutoFetch: true,
+                disableStream: false
+            });
+
+            pdfTask.promise.then(function(pdf) {
+                $spinner.hide();
                 if (!pdf) return;
                 let totalPages = pdf.numPages;
                 let scale = 1.2;
@@ -706,6 +757,7 @@
                 });
 
             }).catch(function(err) {
+                $spinner.hide();
                 showPreviewErrorCard("Unable to Render PDF", "The PDF file could not be parsed or rendered.", cleanName, url, ext);
             });
         }
@@ -1062,14 +1114,23 @@
                 });
             } else if (isTextFile(cleanName)) {
                 let updateProgress = showPreviewProgressCard(cleanName, $content, $spinner);
-                fetchWithProgress(url, updateProgress)
-                    .then(arrayBuffer => {
+                fetchTextChunkWithProgress(url, 524288, updateProgress)
+                    .then(res => {
                         $spinner.hide();
-                        let text = new TextDecoder('utf-8').decode(arrayBuffer);
-                        let safeText = $('<div>').text(text).html();
+                        let safeText = $('<div>').text(res.text).html();
+                        let noticeHtml = '';
+                        if (res.isPartial && res.totalBytes > res.loadedBytes) {
+                            noticeHtml = `
+                                <div class="alert alert-info py-2 px-3 mb-2 small d-flex justify-content-between align-items-center rounded-3 border">
+                                    <span class="extra-small font-monospace text-dark"><i class="bi bi-info-circle-fill text-info me-1"></i> Streaming Preview: Displaying first ${formatBytes(res.loadedBytes)} of ${formatBytes(res.totalBytes)}</span>
+                                    <a href="${url}" download="${cleanName}" class="btn btn-sm btn-dark extra-small rounded-pill py-1 px-3 fw-bold">Download Full File</a>
+                                </div>
+                            `;
+                        }
                         $content.html(`
                             <div class="w-100 text-start">
-                                <pre class="bg-dark text-light p-3 rounded-3 mb-0 shadow-sm" style="max-height: 65vh; overflow: auto; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.875rem; white-space: pre-wrap; word-break: break-all; line-height: 1.5;"><code>${safeText}</code></pre>
+                                ${noticeHtml}
+                                <pre class="bg-dark text-light p-3 rounded-3 mb-0 shadow-sm" style="max-height: 62vh; overflow: auto; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.875rem; white-space: pre-wrap; word-break: break-all; line-height: 1.5;"><code>${safeText}</code></pre>
                             </div>
                         `);
                     })

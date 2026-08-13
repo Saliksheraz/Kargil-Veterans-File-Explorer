@@ -18,11 +18,37 @@ def serve_media(request, path):
     content_type, _ = mimetypes.guess_type(file_path)
     if not content_type:
         content_type = 'application/octet-stream'
-        
-    response = FileResponse(open(file_path, 'rb'), content_type=content_type)
+
+    file_size = os.path.getsize(file_path)
     file_name = os.path.basename(file_path)
-    
-    # Inline disposition forces browser to display file in browser instead of downloading
+    range_header = request.META.get('HTTP_RANGE', '').strip()
+
+    if range_header and range_header.startswith('bytes='):
+        try:
+            byte_range = range_header.split('=')[1].split('-')
+            start_byte = int(byte_range[0])
+            end_byte = int(byte_range[1]) if byte_range[1] else file_size - 1
+            if end_byte >= file_size:
+                end_byte = file_size - 1
+
+            length = end_byte - start_byte + 1
+            with open(file_path, 'rb') as f:
+                f.seek(start_byte)
+                data = f.read(length)
+
+            response = HttpResponse(data, status=206, content_type=content_type)
+            response['Content-Range'] = f'bytes {start_byte}-{end_byte}/{file_size}'
+            response['Content-Length'] = str(length)
+            response['Accept-Ranges'] = 'bytes'
+            response['Content-Disposition'] = f'inline; filename="{file_name}"'
+            response['X-Frame-Options'] = 'SAMEORIGIN'
+            return response
+        except Exception:
+            pass
+
+    response = FileResponse(open(file_path, 'rb'), content_type=content_type)
+    response['Accept-Ranges'] = 'bytes'
+    response['Content-Length'] = str(file_size)
     response['Content-Disposition'] = f'inline; filename="{file_name}"'
     response['X-Frame-Options'] = 'SAMEORIGIN'
     return response
