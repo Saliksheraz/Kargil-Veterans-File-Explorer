@@ -812,89 +812,124 @@
                     return numA - numB;
                 });
 
-                // Extract embedded images from ppt/media
-                let imageMap = {};
-                let mediaFolder = zip.folder("ppt/media");
-                let mediaPromises = [];
+                let totalSlides = slideFiles.length;
+                let currentSlide = 1;
+                let slideCache = {};
 
-                if (mediaFolder) {
-                    mediaFolder.forEach(function(relPath, file) {
-                        let fileExt = relPath.split('.').pop().toLowerCase();
-                        let mime = (fileExt === 'jpg' || fileExt === 'jpeg') ? 'image/jpeg' : (fileExt === 'png' ? 'image/png' : 'image/' + fileExt);
-                        let p = file.async("base64").then(function(b64) {
-                            let base64Url = `data:${mime};base64,${b64}`;
-                            imageMap[relPath] = base64Url;
-                            imageMap[file.name] = base64Url;
-                        });
-                        mediaPromises.push(p);
-                    });
-                }
+                $spinner.hide();
 
-                Promise.all(mediaPromises).then(function() {
-                    let slidesData = new Array(slideFiles.length);
-                    let promises = slideFiles.map(function(item, idx) {
-                        let slideNum = item.path.match(/\d+/)[0];
-                        let relsPath = `ppt/slides/_rels/slide${slideNum}.xml.rels`;
-                        let relsFile = zip.file(relsPath);
+                let deckContainerId = "pptxDeckContainer_" + Math.floor(Math.random() * 100000);
 
-                        let relsPromise = relsFile ? relsFile.async("string") : Promise.resolve("");
+                $container.html(`
+                    <div class="w-100 text-center overflow-auto p-2" style="max-height: 68vh;">
+                        <div class="d-flex align-items-center justify-content-between mb-3 mx-auto" style="max-width: 780px;">
+                            <span class="fw-bold text-dark text-truncate me-2" style="max-width: 350px;">
+                                <i class="bi bi-file-ppt-fill text-warning me-2 fs-5"></i>${cleanName}
+                            </span>
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3 pptx-prev-btn" disabled>
+                                    <i class="bi bi-chevron-left me-1"></i> Prev
+                                </button>
+                                <span class="badge bg-dark font-monospace px-3 py-1.5 pptx-counter">1 / ${totalSlides}</span>
+                                <button type="button" class="btn btn-gold-action btn-sm rounded-pill px-3 pptx-next-btn" ${totalSlides <= 1 ? 'disabled' : ''}>
+                                    Next <i class="bi bi-chevron-right ms-1"></i>
+                                </button>
+                            </div>
+                        </div>
 
-                        return Promise.all([item.file.async("string"), relsPromise]).then(function(results) {
-                            let xmlText = results[0];
-                            let relsXmlText = results[1];
+                        <div id="${deckContainerId}" class="pptx-slide-viewport position-relative">
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-warning spinner-border-sm me-2" role="status"></div>
+                                <span class="small text-muted font-monospace">Loading Slide 1...</span>
+                            </div>
+                        </div>
+                    </div>
+                `).show();
 
-                            let slideImages = [];
-                            if (relsXmlText) {
-                                let relsParser = new DOMParser();
-                                let relsDoc = relsParser.parseFromString(relsXmlText, "text/xml");
-                                let relNodes = relsDoc.getElementsByTagName("*");
-                                for (let r = 0; r < relNodes.length; r++) {
-                                    let target = relNodes[r].getAttribute("Target") || "";
-                                    if (target.includes("media/")) {
-                                        let imgName = target.split("media/").pop();
-                                        if (imageMap[imgName]) {
-                                            slideImages.push(imageMap[imgName]);
-                                        }
+                let $viewport = $("#" + deckContainerId);
+
+                function loadAndRenderSlide(slideNum) {
+                    if (slideNum < 1 || slideNum > totalSlides) return;
+                    currentSlide = slideNum;
+                    $container.find(".pptx-counter").text(`${currentSlide} / ${totalSlides}`);
+                    $container.find(".pptx-prev-btn").prop("disabled", currentSlide === 1);
+                    $container.find(".pptx-next-btn").prop("disabled", currentSlide === totalSlides);
+
+                    if (slideCache[slideNum]) {
+                        $viewport.html(slideCache[slideNum]);
+                        return;
+                    }
+
+                    $viewport.html(`
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-warning spinner-border-sm me-2" role="status"></div>
+                            <span class="small text-muted font-monospace">Loading Slide ${slideNum}...</span>
+                        </div>
+                    `);
+
+                    let targetItem = slideFiles[slideNum - 1];
+                    let slideNumStr = targetItem.path.match(/\d+/)[0];
+                    let relsPath = `ppt/slides/_rels/slide${slideNumStr}.xml.rels`;
+                    let relsFile = zip.file(relsPath);
+
+                    let relsPromise = relsFile ? relsFile.async("string") : Promise.resolve("");
+
+                    Promise.all([targetItem.file.async("string"), relsPromise]).then(function(results) {
+                        let xmlText = results[0];
+                        let relsXmlText = results[1];
+
+                        let parser = new DOMParser();
+                        let xmlDoc = parser.parseFromString(xmlText, "text/xml");
+                        let allNodes = xmlDoc.getElementsByTagName("*");
+                        let slideTexts = [];
+                        for (let i = 0; i < allNodes.length; i++) {
+                            let node = allNodes[i];
+                            let tag = node.localName || node.nodeName;
+                            if (tag === "t" || tag.endsWith(":t")) {
+                                let t = node.textContent ? node.textContent.trim() : "";
+                                if (t) slideTexts.push(t);
+                            }
+                        }
+
+                        let imagePromises = [];
+                        let slideImages = [];
+
+                        if (relsXmlText) {
+                            let relsParser = new DOMParser();
+                            let relsDoc = relsParser.parseFromString(relsXmlText, "text/xml");
+                            let relNodes = relsDoc.getElementsByTagName("*");
+                            for (let r = 0; r < relNodes.length; r++) {
+                                let target = relNodes[r].getAttribute("Target") || "";
+                                if (target.includes("media/")) {
+                                    let imgName = target.split("media/").pop();
+                                    let mediaFile = zip.file(`ppt/media/${imgName}`);
+                                    if (mediaFile) {
+                                        let fileExt = imgName.split('.').pop().toLowerCase();
+                                        let mime = (fileExt === 'jpg' || fileExt === 'jpeg') ? 'image/jpeg' : (fileExt === 'png' ? 'image/png' : 'image/' + fileExt);
+                                        let imgP = mediaFile.async("base64").then(function(b64) {
+                                            slideImages.push(`data:${mime};base64,${b64}`);
+                                        });
+                                        imagePromises.push(imgP);
                                     }
                                 }
                             }
+                        }
 
-                            // Extract text across all XML namespaces
-                            let parser = new DOMParser();
-                            let xmlDoc = parser.parseFromString(xmlText, "text/xml");
-                            let allNodes = xmlDoc.getElementsByTagName("*");
-                            let slideTexts = [];
-                            for (let i = 0; i < allNodes.length; i++) {
-                                let node = allNodes[i];
-                                let tag = node.localName || node.nodeName;
-                                if (tag === "t" || tag.endsWith(":t")) {
-                                    let t = node.textContent ? node.textContent.trim() : "";
-                                    if (t) slideTexts.push(t);
-                                }
-                            }
-                            slidesData[idx] = { number: idx + 1, texts: slideTexts, images: slideImages };
-                        });
-                    });
+                        Promise.all(imagePromises).then(function() {
+                            let title = slideTexts.length > 0 ? slideTexts[0] : `Slide ${slideNum}`;
+                            let bodyTexts = slideTexts.slice(1);
 
-                    Promise.all(promises).then(function() {
-                        $spinner.hide();
-
-                        let slidesHtml = '';
-                        slidesData.forEach(function(slide, idx) {
-                            let title = slide.texts.length > 0 ? slide.texts[0] : `Slide ${slide.number}`;
-                            let bodyTexts = slide.texts.slice(1);
-                            
                             let bodyHtml = '';
                             if (bodyTexts.length > 0) {
-                                bodyHtml = '<ul class="mt-3 text-start fs-6" style="line-height: 1.8; max-width: 650px; margin: 0 auto; color: #334155;">' + 
-                                    bodyTexts.map(t => `<li class="mb-2">${$('<div>').text(t).html()}</li>`).join('') + 
+                                bodyHtml = '<ul class="mt-3 text-start fs-6" style="line-height: 1.8; max-width: 650px; margin: 0 auto; color: #334155;">' +
+                                    bodyTexts.map(t => `<li class="mb-2">${$('<div>').text(t).html()}</li>`).join('') +
                                     '</ul>';
                             }
 
                             let imagesHtml = '';
-                            if (slide.images && slide.images.length > 0) {
-                                imagesHtml = '<div class="d-flex flex-wrap justify-content-center gap-3 mt-3">' +
-                                    slide.images.map(img => `<img src="${img}" class="img-fluid rounded-3 border shadow-sm" style="max-height: 240px; object-fit: contain;">`).join('') +
+                            if (slideImages.length > 0) {
+                                imagesHtml = '<div class="d-flex flex-wrap justify-content-center gap-3 mt-3 mb-2">' +
+                                    slideImages.map(img => `<img src="${img}" class="img-fluid rounded-3 border shadow-sm" style="max-height: 240px; object-fit: contain;">`).join('') +
                                     '</div>';
                             }
 
@@ -902,63 +937,36 @@
                                 bodyHtml = '<p class="text-muted fst-italic mt-3">(Slide graphics / media content)</p>';
                             }
 
-                            slidesHtml += `
-                                <div class="pptx-slide-item" data-slide="${slide.number}" style="${idx === 0 ? 'display: block;' : 'display: none;'}">
-                                    <div class="bg-white p-4 p-md-5 rounded-4 shadow-sm border mx-auto text-center d-flex flex-column justify-content-center align-items-center" style="min-height: 400px; max-width: 780px; border-top: 6px solid var(--primary-gold) !important;">
-                                        <span class="badge bg-warning text-dark font-monospace mb-3 px-3 py-1">Slide ${slide.number} of ${slidesData.length}</span>
-                                        <h4 class="fw-bold text-dark mb-3 text-break">${$('<div>').text(title).html()}</h4>
-                                        <div class="w-100">${imagesHtml}${bodyHtml}</div>
-                                    </div>
+                            let slideCardHtml = `
+                                <div class="bg-white p-4 p-md-5 rounded-4 shadow-sm border mx-auto text-center d-flex flex-column justify-content-center align-items-center" style="min-height: 380px; max-width: 780px; border-top: 6px solid var(--primary-gold) !important;">
+                                    <span class="badge bg-warning text-dark font-monospace mb-3 px-3 py-1">Slide ${slideNum} of ${totalSlides}</span>
+                                    <h4 class="fw-bold text-dark mb-3 text-break">${$('<div>').text(title).html()}</h4>
+                                    <div class="w-100">${imagesHtml}${bodyHtml}</div>
                                 </div>
                             `;
-                        });
 
-                        $container.html(`
-                            <div class="w-100 text-center overflow-auto p-2" style="max-height: 68vh;">
-                                <div class="d-flex align-items-center justify-content-between mb-3 mx-auto" style="max-width: 780px;">
-                                    <span class="fw-bold text-dark"><i class="bi bi-file-ppt-fill text-warning me-2 fs-5"></i>${cleanName}</span>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3 pptx-prev-btn" disabled>
-                                            <i class="bi bi-chevron-left me-1"></i> Prev
-                                        </button>
-                                        <span class="fw-bold text-muted extra-small pptx-counter">1 / ${slidesData.length}</span>
-                                        <button type="button" class="btn btn-gold-action btn-sm rounded-pill px-3 pptx-next-btn" ${slidesData.length <= 1 ? 'disabled' : ''}>
-                                            Next <i class="bi bi-chevron-right ms-1"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="pptx-slides-deck">${slidesHtml}</div>
+                            slideCache[slideNum] = slideCardHtml;
+                            $viewport.html(slideCardHtml);
+                        });
+                    }).catch(function(err) {
+                        $viewport.html(`
+                            <div class="bg-white p-4 rounded-4 border text-center">
+                                <p class="text-muted mb-0">Could not parse contents for Slide ${slideNum}.</p>
                             </div>
                         `);
-
-                        let currentSlide = 1;
-                        let totalSlides = slidesData.length;
-
-                        $container.find(".pptx-next-btn").on("click", function() {
-                            if (currentSlide < totalSlides) {
-                                $container.find(`.pptx-slide-item[data-slide="${currentSlide}"]`).hide();
-                                currentSlide++;
-                                $container.find(`.pptx-slide-item[data-slide="${currentSlide}"]`).fadeIn(150);
-                                updateControls();
-                            }
-                        });
-
-                        $container.find(".pptx-prev-btn").on("click", function() {
-                            if (currentSlide > 1) {
-                                $container.find(`.pptx-slide-item[data-slide="${currentSlide}"]`).hide();
-                                currentSlide--;
-                                $container.find(`.pptx-slide-item[data-slide="${currentSlide}"]`).fadeIn(150);
-                                updateControls();
-                            }
-                        });
-
-                        function updateControls() {
-                            $container.find(".pptx-counter").text(`${currentSlide} / ${totalSlides}`);
-                            $container.find(".pptx-prev-btn").prop("disabled", currentSlide === 1);
-                            $container.find(".pptx-next-btn").prop("disabled", currentSlide === totalSlides);
-                        }
                     });
+                }
+
+                loadAndRenderSlide(1);
+
+                $container.find(".pptx-next-btn").on("click", function() {
+                    if (currentSlide < totalSlides) loadAndRenderSlide(currentSlide + 1);
                 });
+
+                $container.find(".pptx-prev-btn").on("click", function() {
+                    if (currentSlide > 1) loadAndRenderSlide(currentSlide - 1);
+                });
+
             }).catch(function(err) {
                 $spinner.hide();
                 showPreviewErrorCard("PowerPoint Presentation", "PowerPoint file ready for viewing or download.", cleanName, fileUrl, ext);
