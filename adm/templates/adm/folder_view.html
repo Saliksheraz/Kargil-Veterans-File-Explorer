@@ -467,7 +467,7 @@
         <!-- FOLDERS -->
         {% for sub in sub_folders %}
         <div class="col-6 col-sm-4 col-md-3 col-lg-2 grid-item-col" data-sort-name="{{ sub.name|lower }}" data-sort-type="folder" data-sort-size="{{ sub.total_size }}" data-sort-files="{{ sub.file_count }}" data-sort-created="{{ sub.created_at|date:'U'|default:'0' }}">
-            <div class="folder-card card-transition" data-id="{{ sub.id }}" data-name="{{ sub.name }}" data-files-json="{{ sub.all_files_json }}">
+            <div class="folder-card card-transition" data-id="{{ sub.id }}" data-name="{{ sub.name }}" data-files-json="{{ sub.all_files_json }}" data-tree-json="{{ sub.folder_tree_json }}">
                 <form method="post" action="{% url 'delete_folder' sub.id %}" class="d-inline">
                     {% csrf_token %}
                     <button type="submit" class="delete-btn" onclick="return confirmDelete(event, 'folder');" title="Delete Folder">
@@ -534,7 +534,7 @@
             <tbody id="details-table-body">
                 <!-- FOLDERS -->
                 {% for sub in sub_folders %}
-                <tr class="details-folder-row" data-id="{{ sub.id }}" data-name="{{ sub.name }}" data-type="Folder" data-size="{{ sub.total_size }}" data-files="{{ sub.file_count }}" data-created="{{ sub.created_at|date:'Y-m-d H:i:s' }}" data-files-json="{{ sub.all_files_json }}" data-sort-name="{{ sub.name|lower }}" data-sort-type="folder" data-sort-size="{{ sub.total_size }}" data-sort-files="{{ sub.file_count }}" data-sort-created="{{ sub.created_at|date:'U'|default:'0' }}">
+                <tr class="details-folder-row" data-id="{{ sub.id }}" data-name="{{ sub.name }}" data-type="Folder" data-size="{{ sub.total_size }}" data-files="{{ sub.file_count }}" data-created="{{ sub.created_at|date:'Y-m-d H:i:s' }}" data-files-json="{{ sub.all_files_json }}" data-tree-json="{{ sub.folder_tree_json }}" data-sort-name="{{ sub.name|lower }}" data-sort-type="folder" data-sort-size="{{ sub.total_size }}" data-sort-files="{{ sub.file_count }}" data-sort-created="{{ sub.created_at|date:'U'|default:'0' }}">
                     <td class="text-start">
                         <div class="details-table-name-wrapper">
                             <div class="details-table-icon">

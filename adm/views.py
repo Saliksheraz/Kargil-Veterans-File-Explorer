@@ -55,6 +55,11 @@ def serve_media(request, path):
 
 import hashlib
 import subprocess
+import zipfile
+import tempfile
+import shutil
+import re
+import xml.etree.ElementTree as ET
 from urllib.parse import unquote
 
 def find_libreoffice():
@@ -68,8 +73,183 @@ def find_libreoffice():
             return c
     return None
 
-def extract_pptx_links(pptx_path):
-    import zipfile, re, xml.etree.ElementTree as ET
+def expand_pptx_animations(pptx_path, temp_out_path):
+    """
+    Detects if pptx_path has slide animations/steppers (clickEffect / build sequences).
+    If so, creates an expanded PPTX at temp_out_path where animated slides
+    are expanded into multiple static frames (one per animation step).
+    Returns (has_animations, orig_to_new_map).
+    """
+    P_NS = 'http://schemas.openxmlformats.org/presentationml/2006/main'
+    R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+    CT_NS = 'http://schemas.openxmlformats.org/package/2006/content-types'
+    REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships'
+
+    ET.register_namespace('p', P_NS)
+    ET.register_namespace('r', R_NS)
+    ET.register_namespace('a', A_NS)
+    ET.register_namespace('', CT_NS)
+    ET.register_namespace('', REL_NS)
+
+    try:
+        with zipfile.ZipFile(pptx_path, 'r') as z:
+            p_root = ET.fromstring(z.read('ppt/presentation.xml'))
+            sldIdLst = p_root.find(f'{{{P_NS}}}sldIdLst')
+            if sldIdLst is None or len(sldIdLst) == 0:
+                return False, {}
+
+            r_root = ET.fromstring(z.read('ppt/_rels/presentation.xml.rels'))
+            rel_map = {}
+            for rel in r_root.findall(f'{{{REL_NS}}}Relationship'):
+                rel_map[rel.attrib['Id']] = rel.attrib['Target']
+
+            slide_targets = []
+            for sldId in sldIdLst:
+                rId = sldId.attrib.get(f'{{{R_NS}}}id')
+                target = rel_map.get(rId)
+                if target:
+                    if not target.startswith('ppt/'):
+                        target = 'ppt/' + target.lstrip('/')
+                    slide_targets.append(target)
+
+            has_any_anim = False
+            slide_steps = {}
+            for target in slide_targets:
+                if target not in z.namelist():
+                    continue
+                s_root = ET.fromstring(z.read(target))
+                timing = s_root.find(f'{{{P_NS}}}timing')
+                if timing is not None:
+                    seq = timing.find(f'.//{{{P_NS}}}seq')
+                    if seq is not None:
+                        cTn = seq.find(f'{{{P_NS}}}cTn')
+                        if cTn is not None:
+                            childTnLst = cTn.find(f'{{{P_NS}}}childTnLst')
+                            if childTnLst is not None and len(childTnLst) > 0:
+                                entr_shapes = set()
+                                steps_actions = []
+                                for step_par in childTnLst:
+                                    actions = []
+                                    for node in step_par.iter():
+                                        p_class = node.attrib.get('presetClass')
+                                        if p_class in ('entr', 'exit'):
+                                            targets = [sptgt.attrib.get('spid') for sptgt in node.findall(f'.//{{{P_NS}}}spTgt') if sptgt.attrib.get('spid')]
+                                            for t in targets:
+                                                if p_class == 'entr':
+                                                    entr_shapes.add(t)
+                                                actions.append((p_class, t))
+                                    if actions:
+                                        steps_actions.append(actions)
+
+                                if steps_actions:
+                                    has_any_anim = True
+                                    current_hidden = set(entr_shapes)
+                                    states = [set(current_hidden)]
+                                    for actions in steps_actions:
+                                        for p_class, spid in actions:
+                                            if p_class == 'entr':
+                                                current_hidden.discard(spid)
+                                            elif p_class == 'exit':
+                                                current_hidden.add(spid)
+                                        states.append(set(current_hidden))
+                                    slide_steps[target] = states
+
+            if not has_any_anim:
+                return False, {}
+
+            temp_dir = tempfile.mkdtemp()
+            try:
+                z.extractall(temp_dir)
+
+                for ext in list(p_root.findall(f'{{{P_NS}}}extLst')):
+                    p_root.remove(ext)
+                sldIdLst.clear()
+
+                for rel in list(r_root.findall(f'{{{REL_NS}}}Relationship')):
+                    if 'slide' in rel.attrib.get('Type', '') and not 'slideMaster' in rel.attrib.get('Type', '') and not 'notesMaster' in rel.attrib.get('Type', ''):
+                        r_root.remove(rel)
+
+                ct_root = ET.fromstring(z.read('[Content_Types].xml'))
+                for ov in list(ct_root.findall(f'{{{CT_NS}}}Override')):
+                    if '/ppt/slides/slide' in ov.attrib.get('PartName', ''):
+                        ct_root.remove(ov)
+
+                def strip_shapes_from_slide(tree_root, hidden_spids):
+                    for t in list(tree_root.findall(f'{{{P_NS}}}timing')):
+                        tree_root.remove(t)
+                    spTree = tree_root.find(f'.//{{{P_NS}}}spTree')
+                    if spTree is not None and hidden_spids:
+                        for child in list(spTree):
+                            cnvpr = child.find(f'.//{{{P_NS}}}cNvPr')
+                            if cnvpr is None:
+                                cnvpr = child.find(f'.//{{{A_NS}}}cNvPr')
+                            if cnvpr is not None and cnvpr.attrib.get('id') in hidden_spids:
+                                spTree.remove(child)
+
+                new_frame_idx = 1
+                orig_to_new_map = {}
+
+                for orig_idx, target in enumerate(slide_targets, start=1):
+                    orig_to_new_map[orig_idx] = new_frame_idx
+                    slide_bytes = z.read(target)
+                    rels_target = target.replace('ppt/slides/', 'ppt/slides/_rels/') + '.rels'
+                    rels_bytes = z.read(rels_target) if rels_target in z.namelist() else None
+
+                    states = slide_steps.get(target, [set()])
+                    for hidden in states:
+                        s_name = f'slide{new_frame_idx}.xml'
+                        s_path = os.path.join(temp_dir, f'ppt/slides/{s_name}')
+                        r_name = f'{s_name}.rels'
+                        r_path = os.path.join(temp_dir, f'ppt/slides/_rels/{r_name}')
+
+                        s_tree_root = ET.fromstring(slide_bytes)
+                        strip_shapes_from_slide(s_tree_root, hidden)
+                        with open(s_path, 'wb') as f:
+                            f.write(ET.tostring(s_tree_root, encoding='utf-8', xml_declaration=True))
+
+                        if rels_bytes:
+                            with open(r_path, 'wb') as f:
+                                f.write(rels_bytes)
+
+                        sldId = ET.SubElement(sldIdLst, f'{{{P_NS}}}sldId')
+                        sldId.set('id', str(300 + new_frame_idx))
+                        sldId.set(f'{{{R_NS}}}id', f'rIdSlide{new_frame_idx}')
+
+                        rel = ET.SubElement(r_root, f'{{{REL_NS}}}Relationship')
+                        rel.set('Id', f'rIdSlide{new_frame_idx}')
+                        rel.set('Type', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide')
+                        rel.set('Target', f'slides/{s_name}')
+
+                        ov = ET.SubElement(ct_root, f'{{{CT_NS}}}Override')
+                        ov.set('PartName', f'/ppt/slides/{s_name}')
+                        ov.set('ContentType', 'application/vnd.openxmlformats-officedocument.presentationml.slide+xml')
+
+                        new_frame_idx += 1
+
+                with open(os.path.join(temp_dir, 'ppt/presentation.xml'), 'wb') as f:
+                    f.write(ET.tostring(p_root, encoding='utf-8', xml_declaration=True))
+                with open(os.path.join(temp_dir, 'ppt/_rels/presentation.xml.rels'), 'wb') as f:
+                    ET.register_namespace('', REL_NS)
+                    f.write(ET.tostring(r_root, encoding='utf-8', xml_declaration=True))
+                with open(os.path.join(temp_dir, '[Content_Types].xml'), 'wb') as f:
+                    ET.register_namespace('', CT_NS)
+                    f.write(ET.tostring(ct_root, encoding='utf-8', xml_declaration=True))
+
+                with zipfile.ZipFile(temp_out_path, 'w', zipfile.ZIP_DEFLATED) as z_out:
+                    for foldername, subfolders, filenames in os.walk(temp_dir):
+                        for filename in filenames:
+                            filepath = os.path.join(foldername, filename)
+                            arcname = os.path.relpath(filepath, temp_dir)
+                            z_out.write(filepath, arcname)
+
+                return True, orig_to_new_map
+            finally:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+    except Exception:
+        return False, {}
+
+def extract_pptx_links(pptx_path, orig_to_new_map=None):
     if not os.path.exists(pptx_path):
         return {}
     try:
@@ -126,6 +306,10 @@ def extract_pptx_links(pptx_path):
                     if not slide_target and not url_target:
                         continue
 
+                    # If animations were expanded, map original slide target to new first frame index
+                    if slide_target and orig_to_new_map and slide_target in orig_to_new_map:
+                        slide_target = orig_to_new_map[slide_target]
+
                     sp_to_search = xfrm_sp if xfrm_sp is not None else elem
                     xfrm = sp_to_search.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}xfrm')
                     if xfrm is not None:
@@ -147,7 +331,8 @@ def extract_pptx_links(pptx_path):
                 check_element(pic, pic)
 
             if links:
-                slide_links_map[i] = links
+                target_page_idx = orig_to_new_map.get(i, i) if orig_to_new_map else i
+                slide_links_map[target_page_idx] = links
         except Exception:
             pass
 
@@ -158,14 +343,15 @@ def pptx_to_pdf(request):
     """
     On-demand high-fidelity converter:
     Converts a PPTX / PPT file on the server into a native PDF using LibreOffice,
-    caches the result in media/previews/, extracts interactive hyperlinks, and returns the response.
+    supporting slide animation steps/steppers by expanding animated slides into
+    sequential static frames. Caches the result in media/previews/, extracts interactive hyperlinks,
+    and returns the response.
     """
     file_url = request.GET.get('url', '')
     if not file_url:
         return JsonResponse({'error': 'No file URL provided'}, status=400)
 
     clean_url = unquote(file_url).split('?')[0]
-    # Remove leading slash or media/ prefix if needed to locate in MEDIA_ROOT
     rel_path = clean_url
     if rel_path.startswith('/'):
         rel_path = rel_path[1:]
@@ -175,9 +361,6 @@ def pptx_to_pdf(request):
     source_path = os.path.join(settings.MEDIA_ROOT, rel_path)
     if not os.path.exists(source_path):
         return JsonResponse({'error': 'Source file does not exist'}, status=404)
-
-    # Extract interactive hyperlinks from PPTX
-    slide_links = extract_pptx_links(source_path)
 
     # Determine unique cache name based on file path and modification time
     mtime = os.path.getmtime(source_path)
@@ -190,7 +373,9 @@ def pptx_to_pdf(request):
     cached_pdf_path = os.path.join(previews_dir, cached_pdf_name)
     cached_pdf_url = f"{settings.MEDIA_URL}previews/{cached_pdf_name}"
 
+    # Check if cached PDF already exists
     if os.path.exists(cached_pdf_path) and os.path.getsize(cached_pdf_path) > 0:
+        slide_links = extract_pptx_links(source_path)
         return JsonResponse({
             'success': True,
             'pdf_url': cached_pdf_url,
@@ -203,14 +388,32 @@ def pptx_to_pdf(request):
     if not soffice_exe:
         return JsonResponse({'error': 'LibreOffice engine not installed on server'}, status=501)
 
+    temp_expanded_pptx = None
+    input_to_convert = source_path
+    orig_to_new_map = None
+
+    # Check if PPTX contains animation steps to expand
+    if source_path.lower().endswith('.pptx'):
+        expanded_candidate = os.path.join(previews_dir, f"{base_name}_{cache_key}_expanded.pptx")
+        has_anim, sld_map = expand_pptx_animations(source_path, expanded_candidate)
+        if has_anim and os.path.exists(expanded_candidate):
+            input_to_convert = expanded_candidate
+            temp_expanded_pptx = expanded_candidate
+            orig_to_new_map = sld_map
+
+    # Extract interactive hyperlinks from PPTX (with slide mapping if animated)
+    slide_links = extract_pptx_links(source_path, orig_to_new_map)
+
     try:
         # Convert directly to previews dir
-        cmd = [soffice_exe, '--headless', '--convert-to', 'pdf', source_path, '--outdir', previews_dir]
+        cmd = [soffice_exe, '--headless', '--convert-to', 'pdf', input_to_convert, '--outdir', previews_dir]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        default_out_pdf = os.path.join(previews_dir, f"{base_name}.pdf")
+        
+        # Determine expected output filename from LibreOffice
+        input_basename = os.path.splitext(os.path.basename(input_to_convert))[0]
+        default_out_pdf = os.path.join(previews_dir, f"{input_basename}.pdf")
 
         if os.path.exists(default_out_pdf):
-            # Rename to cached name with hash
             if os.path.exists(cached_pdf_path):
                 os.remove(cached_pdf_path)
             os.rename(default_out_pdf, cached_pdf_path)
@@ -232,6 +435,12 @@ def pptx_to_pdf(request):
         return JsonResponse({'error': 'Conversion timed out'}, status=504)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+    finally:
+        if temp_expanded_pptx and os.path.exists(temp_expanded_pptx):
+            try:
+                os.remove(temp_expanded_pptx)
+            except Exception:
+                pass
 
 @login_required
 @xframe_options_sameorigin

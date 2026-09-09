@@ -80,6 +80,35 @@ class Folders(models.Model):
         return file_list
 
     @property
+    def folder_tree(self):
+        """
+        Recursively builds a tree dictionary of subfolders and direct files.
+        """
+        subfolders_data = [sub.folder_tree for sub in Folders.objects.filter(parent_folder=self).order_by('name')]
+        files_data = []
+        for f in self.files_set.all().order_by('file'):
+            if f.file:
+                clean_name = os.path.basename(f.file.name)
+                files_data.append({
+                    'id': f.id,
+                    'name': clean_name,
+                    'raw_name': f.file.name,
+                    'url': f.file.url,
+                    'size': f.file_size_formatted
+                })
+        return {
+            'id': self.id,
+            'name': self.name or 'Folder',
+            'subfolders': subfolders_data,
+            'files': files_data
+        }
+
+    @property
+    def folder_tree_json(self):
+        import json
+        return json.dumps(self.folder_tree)
+
+    @property
     def all_files_json(self):
         import json, os
         data = []

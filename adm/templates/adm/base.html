@@ -248,23 +248,72 @@
             outline: 2px dashed var(--primary-gold) !important;
         }
 
-        /* Folder Files Hover Preview Card Styles */
+        /* Folder Tree Hover Preview Card Styles */
         #folderFilesHoverCard {
             pointer-events: auto;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18) !important;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.22) !important;
+            border: 1px solid rgba(0, 0, 0, 0.12) !important;
+        }
+
+        .hover-tree-container {
+            font-size: 0.82rem;
+        }
+
+        .hover-tree-node {
+            position: relative;
+            margin-bottom: 2px;
+        }
+
+        .hover-tree-branch {
+            position: relative;
+            padding-left: 18px;
+            margin-left: 8px;
+            border-left: 1.5px dashed #cbd5e1;
+        }
+
+        .hover-tree-folder-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 5px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.15s ease;
+            background-color: #f8f9fa;
+            border: 1px solid #edf2f7;
+            margin-bottom: 3px;
+        }
+
+        .hover-tree-folder-header:hover {
+            background-color: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .hover-tree-toggle {
+            font-size: 0.7rem;
+            color: #64748b;
+            width: 14px;
+            display: inline-block;
+            text-align: center;
+            transition: transform 0.2s ease;
+        }
+
+        .hover-tree-toggle.collapsed {
+            transform: rotate(-90deg);
         }
 
         .hover-file-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 6px 10px;
-            margin-bottom: 4px;
-            border-radius: 8px;
+            padding: 5px 8px;
+            margin-bottom: 3px;
+            border-radius: 6px;
             background: #ffffff;
-            border: 1px solid #e9ecef;
+            border: 1px solid #f1f5f9;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.18s ease;
         }
 
         .hover-file-item:hover {
@@ -276,7 +325,7 @@
         .hover-file-item .file-name-text {
             font-size: 0.8rem;
             font-weight: 600;
-            color: #212529;
+            color: #334155;
         }
 
         .hover-file-item:hover .file-name-text {

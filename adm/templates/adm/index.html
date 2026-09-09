@@ -453,7 +453,7 @@
         <!-- FOLDERS -->
         {% for folder in folders %}
         <div class="col-6 col-sm-4 col-md-3 col-lg-2 grid-item-col" data-sort-name="{{ folder.name|lower }}" data-sort-type="folder" data-sort-size="{{ folder.total_size }}" data-sort-files="{{ folder.file_count }}" data-sort-created="{{ folder.created_at|date:'U'|default:'0' }}">
-            <div class="folder-card card-transition" data-name="{{ folder.name }}" data-id="{{ folder.id }}" data-files-json="{{ folder.all_files_json }}">
+            <div class="folder-card card-transition" data-name="{{ folder.name }}" data-id="{{ folder.id }}" data-files-json="{{ folder.all_files_json }}" data-tree-json="{{ folder.folder_tree_json }}">
                 <form method="post" action="{% url 'delete_folder' folder.id %}" class="d-inline">
                     {% csrf_token %}
                     <button type="submit" class="delete-btn" onclick="return confirmDelete(event, 'folder');" title="Delete Folder">
@@ -519,7 +519,7 @@
             <tbody id="details-table-body">
                 <!-- FOLDERS -->
                 {% for folder in folders %}
-                <tr class="details-folder-row" data-id="{{ folder.id }}" data-name="{{ folder.name }}" data-type="Folder" data-size="{{ folder.total_size }}" data-files="{{ folder.file_count }}" data-created="{{ folder.created_at|date:'Y-m-d H:i:s' }}" data-files-json="{{ folder.all_files_json }}" data-sort-name="{{ folder.name|lower }}" data-sort-type="folder" data-sort-size="{{ folder.total_size }}" data-sort-files="{{ folder.file_count }}" data-sort-created="{{ folder.created_at|date:'U'|default:'0' }}">
+                <tr class="details-folder-row" data-id="{{ folder.id }}" data-name="{{ folder.name }}" data-type="Folder" data-size="{{ folder.total_size }}" data-files="{{ folder.file_count }}" data-created="{{ folder.created_at|date:'Y-m-d H:i:s' }}" data-files-json="{{ folder.all_files_json }}" data-tree-json="{{ folder.folder_tree_json }}" data-sort-name="{{ folder.name|lower }}" data-sort-type="folder" data-sort-size="{{ folder.total_size }}" data-sort-files="{{ folder.file_count }}" data-sort-created="{{ folder.created_at|date:'U'|default:'0' }}">
                     <td class="text-start">
                         <div class="details-table-name-wrapper">
                             <div class="details-table-icon">
