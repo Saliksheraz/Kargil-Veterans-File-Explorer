@@ -66,38 +66,36 @@ def find_libreoffice():
     candidates = [
         r'C:\Program Files\LibreOffice\program\soffice.exe',
         r'C:\Program Files (x86)\LibreOffice\program\soffice.exe',
-        'soffice'
+        '/usr/bin/soffice',
+        '/usr/local/bin/soffice',
+        '/usr/bin/libreoffice',
+        '/usr/local/bin/libreoffice',
+        '/Applications/LibreOffice.app/Contents/MacOS/soffice',
+        'soffice',
+        'libreoffice'
     ]
     for c in candidates:
-        if os.path.exists(c) or c == 'soffice':
+        if os.path.isabs(c) and os.path.exists(c):
             return c
+        elif shutil.which(c):
+            return shutil.which(c)
     return None
 
-def expand_pptx_animations(pptx_path, temp_out_path):
+def get_pptx_animation_map(pptx_path):
     """
-    Detects if pptx_path has slide animations/steppers (clickEffect / build sequences).
-    If so, creates an expanded PPTX at temp_out_path where animated slides
-    are expanded into multiple static frames (one per animation step).
-    Returns (has_animations, orig_to_new_map).
+    Inspects pptx_path to determine if any slide has animations/steppers,
+    and returns (has_animations, orig_to_new_map, slide_steps, slide_targets).
     """
     P_NS = 'http://schemas.openxmlformats.org/presentationml/2006/main'
     R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
-    A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-    CT_NS = 'http://schemas.openxmlformats.org/package/2006/content-types'
     REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships'
-
-    ET.register_namespace('p', P_NS)
-    ET.register_namespace('r', R_NS)
-    ET.register_namespace('a', A_NS)
-    ET.register_namespace('', CT_NS)
-    ET.register_namespace('', REL_NS)
 
     try:
         with zipfile.ZipFile(pptx_path, 'r') as z:
             p_root = ET.fromstring(z.read('ppt/presentation.xml'))
             sldIdLst = p_root.find(f'{{{P_NS}}}sldIdLst')
             if sldIdLst is None or len(sldIdLst) == 0:
-                return False, {}
+                return False, {}, {}, []
 
             r_root = ET.fromstring(z.read('ppt/_rels/presentation.xml.rels'))
             rel_map = {}
@@ -156,7 +154,47 @@ def expand_pptx_animations(pptx_path, temp_out_path):
                                     slide_steps[target] = states
 
             if not has_any_anim:
-                return False, {}
+                return False, {}, {}, slide_targets
+
+            new_frame_idx = 1
+            orig_to_new_map = {}
+            for orig_idx, target in enumerate(slide_targets, start=1):
+                orig_to_new_map[orig_idx] = new_frame_idx
+                states = slide_steps.get(target, [set()])
+                new_frame_idx += len(states)
+
+            return True, orig_to_new_map, slide_steps, slide_targets
+    except Exception:
+        return False, {}, {}, []
+
+def expand_pptx_animations(pptx_path, temp_out_path):
+    """
+    Detects if pptx_path has slide animations/steppers (clickEffect / build sequences).
+    If so, creates an expanded PPTX at temp_out_path where animated slides
+    are expanded into multiple static frames (one per animation step).
+    Returns (has_animations, orig_to_new_map).
+    """
+    has_any_anim, orig_to_new_map, slide_steps, slide_targets = get_pptx_animation_map(pptx_path)
+    if not has_any_anim:
+        return False, {}
+
+    P_NS = 'http://schemas.openxmlformats.org/presentationml/2006/main'
+    R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+    CT_NS = 'http://schemas.openxmlformats.org/package/2006/content-types'
+    REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships'
+
+    ET.register_namespace('p', P_NS)
+    ET.register_namespace('r', R_NS)
+    ET.register_namespace('a', A_NS)
+    ET.register_namespace('', CT_NS)
+    ET.register_namespace('', REL_NS)
+
+    try:
+        with zipfile.ZipFile(pptx_path, 'r') as z:
+            p_root = ET.fromstring(z.read('ppt/presentation.xml'))
+            sldIdLst = p_root.find(f'{{{P_NS}}}sldIdLst')
+            r_root = ET.fromstring(z.read('ppt/_rels/presentation.xml.rels'))
 
             temp_dir = tempfile.mkdtemp()
             try:
@@ -375,7 +413,10 @@ def pptx_to_pdf(request):
 
     # Check if cached PDF already exists
     if os.path.exists(cached_pdf_path) and os.path.getsize(cached_pdf_path) > 0:
-        slide_links = extract_pptx_links(source_path)
+        orig_to_new_map = None
+        if source_path.lower().endswith('.pptx'):
+            _, orig_to_new_map = get_pptx_animation_map(source_path)
+        slide_links = extract_pptx_links(source_path, orig_to_new_map)
         return JsonResponse({
             'success': True,
             'pdf_url': cached_pdf_url,

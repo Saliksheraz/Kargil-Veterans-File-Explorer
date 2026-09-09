@@ -2002,7 +2002,8 @@
                             throw new Error(resp.error || "Server PDF conversion failed");
                         }
                     },
-                    error: function() {
+                    error: function(xhr, status, error) {
+                        console.warn("[PPTX Converter] Server conversion notice:", xhr.status, xhr.responseJSON || xhr.responseText || error);
                         // Fallback to client-side JSZip DrawingML renderer if server conversion is unavailable
                         fetchWithProgress(url, updateProgress)
                             .then(arrayBuffer => {
