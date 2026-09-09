@@ -2350,60 +2350,164 @@
             let isOverHoverCard = false;
             let isOverFolderElement = false;
 
-            function showFolderFilesHoverCard(element, event) {
-                let filesDataRaw = $(element).attr("data-files-json");
-                let folderName = $(element).data("name") || $(element).attr("data-name") || "Folder";
-                
-                let files = [];
-                if (filesDataRaw) {
-                    try {
-                        files = JSON.parse(filesDataRaw);
-                    } catch(e) {
-                        files = [];
-                    }
+            // Recursive function to count total subfolders and files in a tree
+            function getTreeCounts(node) {
+                let subfolderCount = 0;
+                let fileCount = (node.files || []).length;
+                if (node.subfolders && node.subfolders.length > 0) {
+                    subfolderCount += node.subfolders.length;
+                    node.subfolders.forEach(sub => {
+                        let res = getTreeCounts(sub);
+                        subfolderCount += res.subfolders;
+                        fileCount += res.files;
+                    });
+                }
+                return { subfolders: subfolderCount, files: fileCount };
+            }
+
+            // Recursive renderer for folder tree
+            function renderFolderTree(node, isRoot = false) {
+                let $container = $(`<div class="${isRoot ? 'hover-tree-container' : 'hover-tree-branch'}"></div>`);
+
+                // 1. Render subfolders first (if any)
+                if (node.subfolders && node.subfolders.length > 0) {
+                    node.subfolders.forEach(sub => {
+                        let subCounts = getTreeCounts(sub);
+                        let hasChildren = (sub.subfolders && sub.subfolders.length > 0) || (sub.files && sub.files.length > 0);
+                        
+                        let $subNode = $(`<div class="hover-tree-node"></div>`);
+                        let $header = $(`
+                            <div class="hover-tree-folder-header">
+                                <div class="d-flex align-items-center gap-1 overflow-hidden me-2">
+                                    <span class="hover-tree-toggle ${hasChildren ? '' : 'invisible'}">
+                                        <i class="bi bi-chevron-down"></i>
+                                    </span>
+                                    <i class="bi bi-folder-fill text-warning fs-6 flex-shrink-0"></i>
+                                    <span class="fw-bold text-truncate text-dark extra-small" title="${sub.name}">${sub.name}</span>
+                                </div>
+                                <span class="badge bg-light text-muted font-monospace extra-small flex-shrink-0 border">
+                                    ${subCounts.files} file${subCounts.files !== 1 ? 's' : ''}${subCounts.subfolders > 0 ? ', ' + subCounts.subfolders + ' sub' : ''}
+                                </span>
+                            </div>
+                        `);
+
+                        let $branchContent = renderFolderTree(sub, false);
+
+                        // Toggle expand/collapse on header click
+                        if (hasChildren) {
+                            $header.on("click", function(e) {
+                                e.stopPropagation();
+                                let $toggle = $(this).find(".hover-tree-toggle");
+                                $toggle.toggleClass("collapsed");
+                                $branchContent.slideToggle(150);
+                            });
+                        }
+
+                        $subNode.append($header);
+                        $subNode.append($branchContent);
+                        $container.append($subNode);
+                    });
                 }
 
-                $("#hoverCardFolderName").text(folderName);
-                $("#hoverCardFileCount").text(`${files.length} File${files.length !== 1 ? 's' : ''}`);
-
-                let $list = $("#hoverCardFilesList");
-                $list.html("");
-
-                if (files.length === 0) {
-                    $list.html(`
-                        <div class="text-center py-3 text-muted extra-small">
-                            <i class="bi bi-folder-x fs-4 d-block mb-1 text-secondary"></i>
-                            No files in this folder
-                        </div>
-                    `);
-                } else {
-                    files.forEach(file => {
+                // 2. Render direct files in this node (if any)
+                if (node.files && node.files.length > 0) {
+                    node.files.forEach(file => {
                         let iconClass = getFileIcon(file.name);
-                        let $item = $(`
-                            <div class="hover-file-item">
+                        let $fileItem = $(`
+                            <div class="hover-file-item" title="Click to preview ${file.name}">
                                 <div class="d-flex align-items-center gap-2 overflow-hidden me-2">
                                     <i class="bi ${iconClass} fs-6 flex-shrink-0"></i>
-                                    <span class="file-name-text text-truncate" title="${file.name}">${file.name}</span>
+                                    <span class="file-name-text text-truncate">${file.name}</span>
                                 </div>
                                 <span class="text-muted extra-small flex-shrink-0">${file.size}</span>
                             </div>
                         `);
 
-                        $item.on("click", function(e) {
+                        $fileItem.on("click", function(e) {
                             e.stopPropagation();
                             e.preventDefault();
                             hideFolderHoverCard();
                             openFilePreviewModal(file.url, file.name, file.size);
                         });
 
-                        $list.append($item);
+                        $container.append($fileItem);
                     });
                 }
+
+                // Empty state for this branch
+                if ((!node.subfolders || node.subfolders.length === 0) && (!node.files || node.files.length === 0)) {
+                    if (isRoot) {
+                        $container.html(`
+                            <div class="text-center py-4 text-muted extra-small">
+                                <i class="bi bi-folder2 fs-3 d-block mb-1 text-secondary opacity-75"></i>
+                                This folder is empty
+                            </div>
+                        `);
+                    } else {
+                        $container.html(`
+                            <div class="text-muted extra-small py-1 ps-2 fst-italic">
+                                (Empty subfolder)
+                            </div>
+                        `);
+                    }
+                }
+
+                return $container;
+            }
+
+            function showFolderFilesHoverCard(element, event) {
+                let treeDataRaw = $(element).attr("data-tree-json");
+                let filesDataRaw = $(element).attr("data-files-json");
+                let folderName = $(element).data("name") || $(element).attr("data-name") || "Folder";
+                
+                let treeData = null;
+                if (treeDataRaw) {
+                    try {
+                        treeData = JSON.parse(treeDataRaw);
+                    } catch(e) {
+                        treeData = null;
+                    }
+                }
+
+                // Fallback if tree data is not present: construct single-level tree from filesData
+                if (!treeData) {
+                    let files = [];
+                    if (filesDataRaw) {
+                        try {
+                            files = JSON.parse(filesDataRaw);
+                        } catch(e) {
+                            files = [];
+                        }
+                    }
+                    treeData = {
+                        name: folderName,
+                        subfolders: [],
+                        files: files
+                    };
+                }
+
+                // Calculate totals across whole tree
+                let counts = getTreeCounts(treeData);
+
+                $("#hoverCardFolderName").text(folderName);
+                $("#hoverCardFileCount").text(`${counts.files} File${counts.files !== 1 ? 's' : ''}`);
+
+                if (counts.subfolders > 0) {
+                    $("#hoverCardFolderCount").text(`${counts.subfolders} Subfolder${counts.subfolders !== 1 ? 's' : ''}`).show();
+                } else {
+                    $("#hoverCardFolderCount").hide();
+                }
+
+                let $list = $("#hoverCardFilesList");
+                $list.html("");
+
+                let $treeRendered = renderFolderTree(treeData, true);
+                $list.append($treeRendered);
 
                 // Calculate stationary position once upon hover
                 let $el = $(element);
                 let offset = $el.offset();
-                let cardWidth = 310;
+                let cardWidth = 340;
                 let windowWidth = $(window).width() + $(window).scrollLeft();
 
                 let leftPos, topPos;
