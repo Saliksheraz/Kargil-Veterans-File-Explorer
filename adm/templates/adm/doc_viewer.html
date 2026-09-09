@@ -177,8 +177,66 @@
             border: 1px solid rgba(255, 255, 255, 0.3);
             backdrop-filter: blur(4px);
         }
-        body.doc-viewer-fullscreen:hover .pptx-fullscreen-exit-btn {
-            opacity: 1;
+        /* Fullscreen styles for PDF (when PPT converted to PDF) */
+        body.doc-viewer-fullscreen .pdf-presentation-wrapper {
+            width: 100vw !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
+            padding: 0 !important;
+            background: #000000 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            overflow: hidden !important;
+        }
+        body.doc-viewer-fullscreen .pdf-presentation-wrapper .pdf-deck-toolbar {
+            display: none !important;
+        }
+        body.doc-viewer-fullscreen .pdf-presentation-wrapper .pdf-canvas-box {
+            width: 100vw !important;
+            height: 100vh !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: #000000 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            margin: 0 !important;
+        }
+        body.doc-viewer-fullscreen .pdf-presentation-wrapper canvas {
+            max-width: 100vw !important;
+            max-height: 100vh !important;
+            width: auto !important;
+            height: auto !important;
+            object-fit: contain !important;
+        }
+
+        /* PDF Presentation Interactive Hyperlink Overlay */
+        .pdf-hyperlink-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 20;
+        }
+        .pdf-interactive-hotspot {
+            position: absolute;
+            pointer-events: auto;
+            cursor: pointer !important;
+            border-radius: 4px;
+            background-color: rgba(255, 235, 59, 0.05);
+            border: 1.5px solid transparent;
+            transition: all 0.2s ease-in-out;
+        }
+        .pdf-interactive-hotspot:hover {
+            background-color: rgba(255, 235, 59, 0.25) !important;
+            border-color: rgba(212, 175, 55, 0.9) !important;
+            box-shadow: 0 0 14px rgba(255, 235, 59, 0.8) !important;
+            transform: scale(1.02);
+            z-index: 30;
         }
     </style>
 </head>
@@ -346,7 +404,7 @@
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         }
 
-        function renderPdfDocument(url, cleanName, $container, $spinner, ext) {
+        function renderPdfDocument(url, cleanName, $container, $spinner, ext, slideLinks) {
             $spinner.show();
             if (!window.pdfjsLib) {
                 renderPdfFallback(url, cleanName, $container, $spinner, ext);
@@ -368,14 +426,21 @@
                 let scale = 1.35;
                 let currentPage = 1;
                 let pageCanvasId = "pdfCanvas_" + Math.floor(Math.random() * 100000);
+                let overlayContainerId = "pdfOverlay_" + Math.floor(Math.random() * 100000);
 
                 $container.html(`
-                    <div class="w-100 text-center overflow-auto p-4 mx-auto" style="max-height: 85vh; max-width: 1100px; background-color: #525659; border-radius: 12px;">
-                        <div class="d-flex align-items-center justify-content-between mb-3 px-3 py-2 bg-dark text-white rounded-3 shadow-sm mx-auto flex-wrap gap-2" style="max-width: 900px;">
+                    <div class="pdf-presentation-wrapper w-100 text-center overflow-auto p-4 mx-auto" style="max-height: 85vh; max-width: 1100px; background-color: #525659; border-radius: 12px;">
+                        <!-- Floating Exit Fullscreen Button (visible on hover in fullscreen) -->
+                        <button type="button" class="btn btn-sm rounded-pill px-3 pptx-fullscreen-exit-btn shadow" title="Exit Fullscreen (Press F or Esc)">
+                            <i class="bi bi-fullscreen-exit me-1"></i> Exit Fullscreen (F)
+                        </button>
+
+                        <div class="pdf-deck-toolbar d-flex align-items-center justify-content-between mb-3 px-3 py-2 bg-dark text-white rounded-3 shadow-sm mx-auto flex-wrap gap-2" style="max-width: 900px;">
                             <span class="fw-bold text-truncate me-2 fs-5" style="max-width: 320px;">
                                 <i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i>${cleanName}
                             </span>
                             <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-secondary font-monospace px-2 py-1 d-none d-md-inline-block" title="Keys: Left/Right Arrow, Space, PageUp/Down, Home/End, F (Fullscreen)"><i class="bi bi-keyboard me-1"></i>&larr; &rarr; Space</span>
                                 <button type="button" class="btn btn-outline-light btn-sm rounded-pill px-3 pdf-prev-page" ${totalPages <= 1 ? 'disabled' : ''}>
                                     <i class="bi bi-chevron-left me-1"></i> Prev
                                 </button>
@@ -399,8 +464,9 @@
                             </div>
                         </div>
 
-                        <div class="bg-white shadow-lg rounded-2 overflow-hidden mx-auto position-relative d-inline-block mb-3" style="max-width: 100%;">
+                        <div class="pdf-canvas-box bg-white shadow-lg rounded-2 overflow-hidden mx-auto position-relative d-inline-block mb-3" style="max-width: 100%;">
                             <canvas id="${pageCanvasId}" class="d-block mx-auto"></canvas>
+                            <div id="${overlayContainerId}" class="pdf-hyperlink-overlay"></div>
                         </div>
                     </div>
                 `).show();
@@ -416,19 +482,58 @@
                     $container.find(".pdf-next-page").prop("disabled", currentPage === totalPages);
 
                     pdf.getPage(currentPage).then(function(page) {
-                        let viewport = page.getViewport({ scale: scale });
                         let canvas = document.getElementById(pageCanvasId);
+                        let overlay = document.getElementById(overlayContainerId);
                         if (!canvas) {
                             isRendering = false;
                             return;
                         }
-                        let context = canvas.getContext('2d');
-                        canvas.height = viewport.height;
-                        canvas.width = viewport.width;
+
+                        // Sharp HiDPI rendering: scale backing store by devicePixelRatio (min 2.0 for retina clarity)
+                        let dpr = Math.max(window.devicePixelRatio || 1, 2.0);
+                        let viewport = page.getViewport({ scale: scale });
+                        let hiDpiViewport = page.getViewport({ scale: scale * dpr });
+
+                        let context = canvas.getContext('2d', { alpha: false });
+                        canvas.height = hiDpiViewport.height;
+                        canvas.width = hiDpiViewport.width;
+                        canvas.style.width = viewport.width + "px";
+                        canvas.style.height = viewport.height + "px";
+
+                        // Render interactive hyperlink hotspots if present
+                        if (overlay) {
+                            overlay.innerHTML = "";
+                            let curLinks = (slideLinks && (slideLinks[currentPage] || slideLinks[String(currentPage)])) || [];
+                            curLinks.forEach(function(lnk) {
+                                let hotspot = document.createElement("div");
+                                hotspot.className = "pdf-interactive-hotspot";
+                                hotspot.style.left = lnk.left_pct + "%";
+                                hotspot.style.top = lnk.top_pct + "%";
+                                hotspot.style.width = lnk.width_pct + "%";
+                                hotspot.style.height = lnk.height_pct + "%";
+
+                                if (lnk.slide_jump) {
+                                    hotspot.title = "Jump to Slide " + lnk.slide_jump;
+                                    hotspot.onclick = function(e) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        renderPage(lnk.slide_jump);
+                                    };
+                                } else if (lnk.url) {
+                                    hotspot.title = "Open: " + lnk.url;
+                                    hotspot.onclick = function(e) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        window.open(lnk.url, "_blank");
+                                    };
+                                }
+                                overlay.appendChild(hotspot);
+                            });
+                        }
 
                         let renderContext = {
                             canvasContext: context,
-                            viewport: viewport
+                            viewport: hiDpiViewport
                         };
                         page.render(renderContext).promise.then(function() {
                             isRendering = false;
@@ -472,6 +577,88 @@
                         $container.find(".pdf-zoom-level").text(Math.round(scale * 100) + "%");
                         renderPage(currentPage);
                     }
+                });
+
+                // PowerPoint-style keyboard shortcuts for PDF presentation in doc_viewer
+                $(document).off("keydown.pdfViewer").on("keydown.pdfViewer", function(e) {
+                    let activeTag = (document.activeElement && document.activeElement.tagName) ? document.activeElement.tagName.toLowerCase() : '';
+                    if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') return;
+
+                    switch (e.key) {
+                        case "ArrowRight":
+                        case "ArrowDown":
+                        case "PageDown":
+                        case " ":
+                        case "n":
+                        case "N":
+                            e.preventDefault();
+                            if (currentPage < totalPages) renderPage(currentPage + 1);
+                            break;
+                        case "ArrowLeft":
+                        case "ArrowUp":
+                        case "PageUp":
+                        case "Backspace":
+                        case "p":
+                        case "P":
+                            e.preventDefault();
+                            if (currentPage > 1) renderPage(currentPage - 1);
+                            break;
+                        case "Home":
+                            e.preventDefault();
+                            renderPage(1);
+                            break;
+                        case "End":
+                            e.preventDefault();
+                            renderPage(totalPages);
+                            break;
+                        case "f":
+                        case "F":
+                            e.preventDefault();
+                            toggleDocFullscreen();
+                            break;
+                        case "Escape":
+                            if (document.fullscreenElement || $("body").hasClass("doc-viewer-fullscreen")) {
+                                e.preventDefault();
+                                exitDocFullscreen();
+                            }
+                            break;
+                    }
+                });
+
+                function toggleDocFullscreen() {
+                    if (!document.fullscreenElement && !$("body").hasClass("doc-viewer-fullscreen")) {
+                        if (document.documentElement.requestFullscreen) {
+                            document.documentElement.requestFullscreen().catch(function() {
+                                $("body").addClass("doc-viewer-fullscreen");
+                            });
+                        } else {
+                            $("body").addClass("doc-viewer-fullscreen");
+                        }
+                    } else {
+                        exitDocFullscreen();
+                    }
+                }
+
+                function exitDocFullscreen() {
+                    if (document.fullscreenElement) {
+                        if (document.exitFullscreen) {
+                            document.exitFullscreen().catch(function() {});
+                        }
+                    }
+                    $("body").removeClass("doc-viewer-fullscreen");
+                }
+
+                document.addEventListener("fullscreenchange", function() {
+                    if (document.fullscreenElement) {
+                        $("body").addClass("doc-viewer-fullscreen");
+                    } else {
+                        $("body").removeClass("doc-viewer-fullscreen");
+                    }
+                });
+
+                $(document).off("click.pdfExitFs").on("click.pdfExitFs", ".pptx-fullscreen-exit-btn", function(e) {
+                    e.preventDefault();
+                    exitDocFullscreen();
                 });
 
             }).catch(function(err) {
@@ -1391,24 +1578,40 @@
                     });
             } else if (isPpt(cleanName)) {
                 let updateProgress = showPreviewProgressCard(cleanName, $container, $spinner);
-                fetchWithProgress(fileUrl, updateProgress)
-                    .then(buffer => {
-                        $spinner.hide();
-                        renderPptxSlides(buffer, cleanName, $container, $spinner, fileUrl, ext);
-                    })
-                    .catch(err => {
-                        $spinner.hide();
-                        $container.html(`
-                            <div class="text-center py-5 bg-white rounded-4 shadow-sm border p-4 mx-auto" style="max-width: 600px;">
-                                <i class="bi bi-file-ppt text-warning display-3 mb-3 d-block"></i>
-                                <h5 class="fw-bold">${cleanName}</h5>
-                                <p class="text-muted">PowerPoint presentation file ready for download.</p>
-                                <a href="${fileUrl}" download="${cleanName}" class="btn btn-warning rounded-pill px-4 fw-bold">
-                                    <i class="bi bi-download me-1"></i> Download PowerPoint File
-                                </a>
-                            </div>
-                        `).show();
-                    });
+                $.ajax({
+                    url: '/pptx-to-pdf/?url=' + encodeURIComponent(fileUrl),
+                    type: 'GET',
+                    timeout: 45000,
+                    success: function(resp) {
+                        if (resp && resp.success && resp.pdf_url) {
+                            $spinner.hide();
+                            renderPdfDocument(resp.pdf_url, cleanName, $container, $spinner, 'PDF', resp.links || null);
+                        } else {
+                            throw new Error(resp.error || "Server PDF conversion failed");
+                        }
+                    },
+                    error: function() {
+                        // Fallback to client-side JSZip DrawingML renderer if server conversion fails
+                        fetchWithProgress(fileUrl, updateProgress)
+                            .then(buffer => {
+                                $spinner.hide();
+                                renderPptxSlides(buffer, cleanName, $container, $spinner, fileUrl, ext);
+                            })
+                            .catch(err => {
+                                $spinner.hide();
+                                $container.html(`
+                                    <div class="text-center py-5 bg-white rounded-4 shadow-sm border p-4 mx-auto" style="max-width: 600px;">
+                                        <i class="bi bi-file-ppt text-warning display-3 mb-3 d-block"></i>
+                                        <h5 class="fw-bold">${cleanName}</h5>
+                                        <p class="text-muted">PowerPoint presentation file ready for download.</p>
+                                        <a href="${fileUrl}" download="${cleanName}" class="btn btn-warning rounded-pill px-4 fw-bold">
+                                            <i class="bi bi-download me-1"></i> Download PowerPoint File
+                                        </a>
+                                    </div>
+                                `).show();
+                            });
+                    }
+                });
             } else if (isPdf(cleanName)) {
                 $spinner.hide();
                 renderPdfDocument(fileUrl, cleanName, $container, $spinner, ext);
