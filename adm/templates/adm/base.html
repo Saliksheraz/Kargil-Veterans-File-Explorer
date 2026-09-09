@@ -283,6 +283,137 @@
             color: var(--army-green);
         }
 
+        /* Modal Fullscreen enhancements - Immersive PPTX Presentation Mode */
+        #filePreviewModal.modal-is-fullscreen .modal-dialog {
+            max-width: 100vw !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            margin: 0 !important;
+        }
+        #filePreviewModal.modal-is-fullscreen .modal-content {
+            height: 100vh !important;
+            border-radius: 0 !important;
+            background: #000000 !important;
+            border: none !important;
+            overflow: hidden !important;
+        }
+        #filePreviewModal.modal-is-fullscreen .modal-header,
+        #filePreviewModal.modal-is-fullscreen .modal-footer {
+            display: none !important;
+        }
+        #filePreviewModal.modal-is-fullscreen .modal-body {
+            max-height: 100vh !important;
+            height: 100vh !important;
+            padding: 0 !important;
+            background: #000000 !important;
+            overflow: hidden !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        #filePreviewModal.modal-is-fullscreen #filePreviewContent {
+            width: 100vw !important;
+            height: 100vh !important;
+            overflow: hidden !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        #filePreviewModal.modal-is-fullscreen .pptx-main-wrapper {
+            max-height: 100vh !important;
+            height: 100vh !important;
+            width: 100vw !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            align-items: center !important;
+        }
+        #filePreviewModal.modal-is-fullscreen .pptx-deck-toolbar {
+            display: none !important;
+        }
+        #filePreviewModal.modal-is-fullscreen .pptx-slide-viewport {
+            width: 100vw !important;
+            height: 100vh !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            overflow: hidden !important;
+        }
+        #filePreviewModal.modal-is-fullscreen .pptx-slide-item {
+            max-width: 100vw !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            margin: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        #filePreviewModal.modal-is-fullscreen .pptx-slide-item .card {
+            border-radius: 0 !important;
+            border: none !important;
+            background: #000000 !important;
+            box-shadow: none !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        #filePreviewModal.modal-is-fullscreen .pptx-slide-item .card-header,
+        #filePreviewModal.modal-is-fullscreen .pptx-slide-item .collapse {
+            display: none !important;
+        }
+        #filePreviewModal.modal-is-fullscreen .pptx-map-canvas-container {
+            width: 100vw !important;
+            height: auto !important;
+            max-width: 100vw !important;
+            max-height: 100vh !important;
+            max-width: calc(100vh * (var(--slide-aspect-w, 16) / var(--slide-aspect-h, 9))) !important;
+            margin: auto !important;
+        }
+        #filePreviewModal.modal-is-fullscreen .pptx-fallback-card {
+            border-radius: 0 !important;
+            border: none !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: 100vw !important;
+            max-height: 100vh !important;
+            margin: 0 !important;
+            justify-content: center !important;
+            overflow-y: auto !important;
+        }
+        /* Floating exit fullscreen button on hover in fullscreen */
+        .pptx-fullscreen-exit-btn {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 99999;
+            opacity: 0;
+            transition: opacity 0.25s ease-in-out;
+            background: rgba(0, 0, 0, 0.6);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(4px);
+        }
+        #filePreviewModal.modal-is-fullscreen:hover .pptx-fullscreen-exit-btn,
+        body.doc-viewer-fullscreen:hover .pptx-fullscreen-exit-btn {
+            opacity: 1;
+        }
+
+        /* PPTX Interactive Elements */
+        .pptx-clickable {
+            cursor: pointer !important;
+            transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+        }
+        .pptx-clickable:hover {
+            transform: translate(-50%, -50%) scale(1.08) !important;
+            filter: brightness(1.15);
+            box-shadow: 0 0 12px rgba(255, 235, 59, 0.9) !important;
+            z-index: 99 !important;
+        }
+
         {% block extra_css %}{% endblock %}
     </style>
 </head>
@@ -340,6 +471,9 @@
                         </div>
                     </div>
                     <div class="d-flex align-items-center gap-2 flex-shrink-0 ms-auto">
+                        <button type="button" id="modalFullscreenBtn" class="btn btn-sm btn-outline-light rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; border-color: rgba(255,255,255,0.3);" title="Toggle Fullscreen">
+                            <i class="bi bi-arrows-fullscreen"></i>
+                        </button>
                         <a id="headerExpandBtn" href="#" target="_blank" class="btn btn-sm btn-outline-light rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; border-color: rgba(255,255,255,0.3);" title="Expand in New Tab">
                             <i class="bi bi-box-arrow-up-right"></i>
                         </a>
@@ -365,6 +499,9 @@
                         <span>Kargil Veterans File Explorer</span>
                     </div>
                     <div class="d-flex align-items-center gap-2 ms-auto">
+                        <button type="button" id="previewFullscreenBtn" class="btn btn-outline-secondary rounded-pill px-3 py-2 btn-sm fw-semibold">
+                            <i class="bi bi-arrows-fullscreen me-1"></i> Fullscreen
+                        </button>
                         <a id="previewExpandBtn" href="#" target="_blank" class="btn btn-outline-dark rounded-pill px-3 py-2 btn-sm fw-semibold">
                             <i class="bi bi-box-arrow-up-right me-1"></i> Expand
                         </a>
@@ -816,173 +953,709 @@
                 let currentSlide = 1;
                 let slideCache = {};
 
-                $spinner.hide();
+                // Read presentation.xml to obtain slide width & height (in EMUs)
+                let presFile = zip.file("ppt/presentation.xml");
+                let presPromise = presFile ? presFile.async("string") : Promise.resolve("");
 
-                let deckContainerId = "pptxDeckContainer_" + Math.floor(Math.random() * 100000);
-
-                $container.html(`
-                    <div class="w-100 text-center overflow-auto p-2" style="max-height: 68vh;">
-                        <div class="d-flex align-items-center justify-content-between mb-3 mx-auto" style="max-width: 780px;">
-                            <span class="fw-bold text-dark text-truncate me-2" style="max-width: 350px;">
-                                <i class="bi bi-file-ppt-fill text-warning me-2 fs-5"></i>${cleanName}
-                            </span>
-                            <div class="d-flex align-items-center gap-2">
-                                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3 pptx-prev-btn" disabled>
-                                    <i class="bi bi-chevron-left me-1"></i> Prev
-                                </button>
-                                <span class="badge bg-dark font-monospace px-3 py-1.5 pptx-counter">1 / ${totalSlides}</span>
-                                <button type="button" class="btn btn-gold-action btn-sm rounded-pill px-3 pptx-next-btn" ${totalSlides <= 1 ? 'disabled' : ''}>
-                                    Next <i class="bi bi-chevron-right ms-1"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div id="${deckContainerId}" class="pptx-slide-viewport position-relative">
-                            <div class="text-center py-5">
-                                <div class="spinner-border text-warning spinner-border-sm me-2" role="status"></div>
-                                <span class="small text-muted font-monospace">Loading Slide 1...</span>
-                            </div>
-                        </div>
-                    </div>
-                `).show();
-
-                let $viewport = $("#" + deckContainerId);
-
-                function loadAndRenderSlide(slideNum) {
-                    if (slideNum < 1 || slideNum > totalSlides) return;
-                    currentSlide = slideNum;
-                    $container.find(".pptx-counter").text(`${currentSlide} / ${totalSlides}`);
-                    $container.find(".pptx-prev-btn").prop("disabled", currentSlide === 1);
-                    $container.find(".pptx-next-btn").prop("disabled", currentSlide === totalSlides);
-
-                    if (slideCache[slideNum]) {
-                        $viewport.html(slideCache[slideNum]);
-                        return;
+                presPromise.then(function(presXmlText) {
+                    let slideW = 12192000;
+                    let slideH = 6858000;
+                    if (presXmlText) {
+                        try {
+                            let pDoc = new DOMParser().parseFromString(presXmlText, "text/xml");
+                            let sldSz = pDoc.getElementsByTagName("p:sldSz")[0] || pDoc.getElementsByTagName("sldSz")[0];
+                            if (sldSz) {
+                                let cx = parseInt(sldSz.getAttribute("cx"), 10);
+                                let cy = parseInt(sldSz.getAttribute("cy"), 10);
+                                if (cx > 0 && cy > 0) {
+                                    slideW = cx;
+                                    slideH = cy;
+                                }
+                            }
+                        } catch (e) {}
                     }
 
-                    $viewport.html(`
-                        <div class="text-center py-5">
-                            <div class="spinner-border text-warning spinner-border-sm me-2" role="status"></div>
-                            <span class="small text-muted font-monospace">Loading Slide ${slideNum}...</span>
+                    $spinner.hide();
+
+                    let deckContainerId = "pptxDeckContainer_" + Math.floor(Math.random() * 100000);
+
+                    $container.html(`
+                        <div class="pptx-main-wrapper w-100 text-center overflow-auto p-1" style="max-height: 72vh;">
+                            <!-- Floating Exit Fullscreen Button (visible on hover in fullscreen) -->
+                            <button type="button" class="btn btn-sm rounded-pill px-3 pptx-fullscreen-exit-btn shadow" title="Exit Fullscreen (Press F or Esc)">
+                                <i class="bi bi-fullscreen-exit me-1"></i> Exit Fullscreen (F)
+                            </button>
+
+                            <div class="pptx-deck-toolbar d-flex align-items-center justify-content-between mb-3 mx-auto px-2" style="max-width: 950px;">
+                                <span class="fw-bold text-dark text-truncate me-2 fs-5" style="max-width: 400px;">
+                                    <i class="bi bi-file-ppt-fill text-warning me-2 fs-5"></i>${cleanName}
+                                </span>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-light text-secondary border font-monospace px-2 py-1 d-none d-md-inline-block" title="Shortcuts: Left/Right Arrow, Space, PageUp/Down, Home/End, F (Fullscreen)"><i class="bi bi-keyboard me-1"></i>&larr; &rarr; Space</span>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3 pptx-prev-btn" disabled title="Previous slide (Left Arrow / Up Arrow / PageUp)">
+                                        <i class="bi bi-chevron-left me-1"></i> Prev
+                                    </button>
+                                    <span class="badge bg-dark font-monospace px-3 py-1.5 pptx-counter">1 / ${totalSlides}</span>
+                                    <button type="button" class="btn btn-gold-action btn-sm rounded-pill px-3 pptx-next-btn" ${totalSlides <= 1 ? 'disabled' : ''} title="Next slide (Right Arrow / Down Arrow / Space / PageDown)">
+                                        Next <i class="bi bi-chevron-right ms-1"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="${deckContainerId}" class="pptx-slide-viewport position-relative">
+                                <div class="text-center py-5">
+                                    <div class="spinner-border text-warning spinner-border-sm me-2" role="status"></div>
+                                    <span class="small text-muted font-monospace">Loading Slide 1...</span>
+                                </div>
+                            </div>
                         </div>
-                    `);
+                    `).show();
 
-                    let targetItem = slideFiles[slideNum - 1];
-                    let slideNumStr = targetItem.path.match(/\d+/)[0];
-                    let relsPath = `ppt/slides/_rels/slide${slideNumStr}.xml.rels`;
-                    let relsFile = zip.file(relsPath);
+                    let $viewport = $("#" + deckContainerId);
 
-                    let relsPromise = relsFile ? relsFile.async("string") : Promise.resolve("");
+                    function parseSlideElements(node, offX, offY, scX, scY, relsDict, slideFileMap) {
+                        let shapes = [];
+                        let connectors = [];
+                        let children = node.children || [];
 
-                    Promise.all([targetItem.file.async("string"), relsPromise]).then(function(results) {
-                        let xmlText = results[0];
-                        let relsXmlText = results[1];
+                        for (let i = 0; i < children.length; i++) {
+                            let child = children[i];
+                            let tag = child.localName || child.nodeName.split(':').pop();
 
-                        let parser = new DOMParser();
-                        let xmlDoc = parser.parseFromString(xmlText, "text/xml");
-                        let allNodes = xmlDoc.getElementsByTagName("*");
-                        let slideTexts = [];
-                        for (let i = 0; i < allNodes.length; i++) {
-                            let node = allNodes[i];
-                            let tag = node.localName || node.nodeName;
-                            if (tag === "t" || tag.endsWith(":t")) {
-                                let t = node.textContent ? node.textContent.trim() : "";
-                                if (t) slideTexts.push(t);
+                            if (tag === 'grpSp') {
+                                let gOffX = 0, gOffY = 0, gChOffX = 0, gChOffY = 0;
+                                let gExtCx = 1, gExtCy = 1, gChExtCx = 1, gChExtCy = 1;
+
+                                let grpSpPr = child.getElementsByTagName("p:grpSpPr")[0] || child.getElementsByTagName("grpSpPr")[0];
+                                if (grpSpPr) {
+                                    let xfrm = grpSpPr.getElementsByTagName("a:xfrm")[0] || grpSpPr.getElementsByTagName("xfrm")[0];
+                                    if (xfrm) {
+                                        let off = xfrm.getElementsByTagName("a:off")[0] || xfrm.getElementsByTagName("off")[0];
+                                        let chOff = xfrm.getElementsByTagName("a:chOff")[0] || xfrm.getElementsByTagName("chOff")[0];
+                                        let ext = xfrm.getElementsByTagName("a:ext")[0] || xfrm.getElementsByTagName("ext")[0];
+                                        let chExt = xfrm.getElementsByTagName("a:chExt")[0] || xfrm.getElementsByTagName("chExt")[0];
+
+                                        if (off) {
+                                            gOffX = parseInt(off.getAttribute("x") || 0, 10);
+                                            gOffY = parseInt(off.getAttribute("y") || 0, 10);
+                                        }
+                                        if (chOff) {
+                                            gChOffX = parseInt(chOff.getAttribute("x") || 0, 10);
+                                            gChOffY = parseInt(chOff.getAttribute("y") || 0, 10);
+                                        }
+                                        if (ext) {
+                                            gExtCx = parseInt(ext.getAttribute("cx") || 1, 10);
+                                            gExtCy = parseInt(ext.getAttribute("cy") || 1, 10);
+                                        }
+                                        if (chExt) {
+                                            gChExtCx = parseInt(chExt.getAttribute("cx") || 1, 10);
+                                            gChExtCy = parseInt(chExt.getAttribute("cy") || 1, 10);
+                                        }
+                                    }
+                                }
+
+                                let newScX = (gExtCx / (gChExtCx || 1)) * scX;
+                                let newScY = (gExtCy / (gChExtCy || 1)) * scY;
+                                let newOffX = offX + (gOffX - gChOffX * (gExtCx / (gChExtCx || 1))) * scX;
+                                let newOffY = offY + (gOffY - gChOffY * (gExtCy / (gChExtCy || 1))) * scY;
+
+                                let res = parseSlideElements(child, newOffX, newOffY, newScX, newScY, relsDict, slideFileMap);
+                                shapes = shapes.concat(res.shapes);
+                                connectors = connectors.concat(res.connectors);
+                            } else if (tag === 'cxnSp') {
+                                let cOffX = 0, cOffY = 0, cExtCx = 0, cExtCy = 0;
+                                let flipH = false, flipV = false;
+                                let spPr = child.getElementsByTagName("p:spPr")[0] || child.getElementsByTagName("spPr")[0];
+                                if (spPr) {
+                                    let xfrm = spPr.getElementsByTagName("a:xfrm")[0] || spPr.getElementsByTagName("xfrm")[0];
+                                    if (xfrm) {
+                                        flipH = xfrm.getAttribute("flipH") === "1";
+                                        flipV = xfrm.getAttribute("flipV") === "1";
+                                        let off = xfrm.getElementsByTagName("a:off")[0] || xfrm.getElementsByTagName("off")[0];
+                                        let ext = xfrm.getElementsByTagName("a:ext")[0] || xfrm.getElementsByTagName("ext")[0];
+                                        if (off) {
+                                            cOffX = parseInt(off.getAttribute("x") || 0, 10);
+                                            cOffY = parseInt(off.getAttribute("y") || 0, 10);
+                                        }
+                                        if (ext) {
+                                            cExtCx = parseInt(ext.getAttribute("cx") || 0, 10);
+                                            cExtCy = parseInt(ext.getAttribute("cy") || 0, 10);
+                                        }
+                                    }
+                                }
+
+                                let x1 = offX + cOffX * scX;
+                                let y1 = offY + cOffY * scY;
+                                let w = cExtCx * scX;
+                                let h = cExtCy * scY;
+                                let x2 = x1 + w;
+                                let y2 = y1 + h;
+
+                                let startX = flipH ? x2 : x1;
+                                let endX = flipH ? x1 : x2;
+                                let startY = flipV ? y2 : y1;
+                                let endY = flipV ? y1 : y2;
+
+                                let strokeColor = "#ff0000";
+                                let srgbClr = child.getElementsByTagName("a:srgbClr")[0] || child.getElementsByTagName("srgbClr")[0];
+                                if (srgbClr && srgbClr.getAttribute("val")) {
+                                    strokeColor = "#" + srgbClr.getAttribute("val");
+                                } else {
+                                    let schemeClr = child.getElementsByTagName("a:schemeClr")[0] || child.getElementsByTagName("schemeClr")[0];
+                                    if (schemeClr && schemeClr.getAttribute("val") === "tx1") strokeColor = "#000000";
+                                }
+
+                                connectors.push({
+                                    x1: (startX / slideW) * 100,
+                                    y1: (startY / slideH) * 100,
+                                    x2: (endX / slideW) * 100,
+                                    y2: (endY / slideH) * 100,
+                                    color: strokeColor
+                                });
+                            } else if (tag === 'sp') {
+                                let sOffX = 0, sOffY = 0, sExtCx = 0, sExtCy = 0;
+                                let rot = 0;
+                                let hasPos = false;
+                                let spPr = child.getElementsByTagName("p:spPr")[0] || child.getElementsByTagName("spPr")[0];
+                                if (spPr) {
+                                    let xfrm = spPr.getElementsByTagName("a:xfrm")[0] || spPr.getElementsByTagName("xfrm")[0];
+                                    if (xfrm) {
+                                        if (xfrm.hasAttribute("rot")) {
+                                            rot = parseInt(xfrm.getAttribute("rot") || 0, 10) / 60000.0;
+                                        }
+                                        let off = xfrm.getElementsByTagName("a:off")[0] || xfrm.getElementsByTagName("off")[0];
+                                        let ext = xfrm.getElementsByTagName("a:ext")[0] || xfrm.getElementsByTagName("ext")[0];
+                                        if (off && ext) {
+                                            sOffX = parseInt(off.getAttribute("x") || 0, 10);
+                                            sOffY = parseInt(off.getAttribute("y") || 0, 10);
+                                            sExtCx = parseInt(ext.getAttribute("cx") || 0, 10);
+                                            sExtCy = parseInt(ext.getAttribute("cy") || 0, 10);
+                                            hasPos = true;
+                                        }
+                                    }
+                                }
+
+                                if (!hasPos) continue;
+
+                                let geom = "rect";
+                                let prstGeom = child.getElementsByTagName("a:prstGeom")[0] || child.getElementsByTagName("prstGeom")[0];
+                                if (prstGeom && prstGeom.getAttribute("prst")) {
+                                    geom = prstGeom.getAttribute("prst");
+                                }
+
+                                let fillColor = null;
+                                if (spPr) {
+                                    let solidFill = spPr.getElementsByTagName("a:solidFill")[0] || spPr.getElementsByTagName("solidFill")[0];
+                                    if (solidFill) {
+                                        let srgb = solidFill.getElementsByTagName("a:srgbClr")[0] || solidFill.getElementsByTagName("srgbClr")[0];
+                                        if (srgb && srgb.getAttribute("val")) {
+                                            fillColor = "#" + srgb.getAttribute("val");
+                                        }
+                                    }
+                                }
+
+                                let textNodes = child.getElementsByTagName("a:t");
+                                if (!textNodes || textNodes.length === 0) {
+                                    textNodes = child.getElementsByTagName("t");
+                                }
+                                let tParts = [];
+                                for (let tn = 0; tn < textNodes.length; tn++) {
+                                    let txtVal = textNodes[tn].textContent;
+                                    if (txtVal) tParts.push(txtVal);
+                                }
+                                let fullText = tParts.join("").trim();
+
+                                let fontSz = 700;
+                                let fontClr = null;
+                                let rPrs = child.getElementsByTagName("a:rPr");
+                                if (!rPrs || rPrs.length === 0) rPrs = child.getElementsByTagName("rPr");
+                                if (rPrs && rPrs.length > 0) {
+                                    let szAttr = rPrs[0].getAttribute("sz");
+                                    if (szAttr) fontSz = parseInt(szAttr, 10);
+                                    let rSrgb = rPrs[0].getElementsByTagName("a:srgbClr")[0] || rPrs[0].getElementsByTagName("srgbClr")[0];
+                                    if (rSrgb && rSrgb.getAttribute("val")) {
+                                        fontClr = "#" + rSrgb.getAttribute("val");
+                                    } else {
+                                        let rScheme = rPrs[0].getElementsByTagName("a:schemeClr")[0] || rPrs[0].getElementsByTagName("schemeClr")[0];
+                                        if (rScheme && (rScheme.getAttribute("val") === "bg1" || rScheme.getAttribute("val") === "lt1")) {
+                                            fontClr = "#ffffff";
+                                        }
+                                    }
+                                }
+
+                                // Hyperlink Extraction (shape-level or text-level)
+                                let slideJump = null;
+                                let hlinkUrl = null;
+                                let allHlinks = child.getElementsByTagName("a:hlinkClick");
+                                if (!allHlinks || allHlinks.length === 0) {
+                                    allHlinks = child.getElementsByTagName("hlinkClick");
+                                }
+                                for (let hi = 0; hi < allHlinks.length; hi++) {
+                                    let hElem = allHlinks[hi];
+                                    let rId = hElem.getAttribute("r:id") || hElem.getAttribute("id") || "";
+                                    let action = hElem.getAttribute("action") || "";
+                                    if (rId && relsDict && relsDict[rId]) {
+                                        let target = relsDict[rId];
+                                        let sm = target.match(/slide(\d+)\.xml/i);
+                                        if (sm) {
+                                            let sFileName = `slide${sm[1]}.xml`;
+                                            slideJump = (slideFileMap && slideFileMap[sFileName]) ? slideFileMap[sFileName] : parseInt(sm[1], 10);
+                                            break;
+                                        } else if (/^https?:\/\//i.test(target)) {
+                                            hlinkUrl = target;
+                                            break;
+                                        }
+                                    } else if (action.includes("hlinksldjump")) {
+                                        let sm = action.match(/slide(\d+)/i);
+                                        if (sm) {
+                                            slideJump = parseInt(sm[1], 10);
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                let finalX = offX + sOffX * scX;
+                                let finalY = offY + sOffY * scY;
+                                let finalW = sExtCx * scX;
+                                let finalH = sExtCy * scY;
+
+                                shapes.push({
+                                    text: fullText,
+                                    geom: geom,
+                                    fill: fillColor,
+                                    fontColor: fontClr,
+                                    fontSize: fontSz,
+                                    left: (finalX / slideW) * 100,
+                                    top: (finalY / slideH) * 100,
+                                    width: (finalW / slideW) * 100,
+                                    height: (finalH / slideH) * 100,
+                                    rot: rot,
+                                    slideJump: slideJump,
+                                    hlinkUrl: hlinkUrl
+                                });
                             }
                         }
+                        return { shapes: shapes, connectors: connectors };
+                    }
 
-                        let imagePromises = [];
-                        let slideImages = [];
+                    // Map of slide filenames to sequential slide numbers (1-indexed)
+                    let slideFileMap = {};
+                    slideFiles.forEach((sf, idx) => {
+                        let m = sf.path.match(/(slide\d+\.xml)/i);
+                        if (m) slideFileMap[m[1]] = idx + 1;
+                    });
 
-                        if (relsXmlText) {
-                            let relsParser = new DOMParser();
-                            let relsDoc = relsParser.parseFromString(relsXmlText, "text/xml");
-                            let relNodes = relsDoc.getElementsByTagName("*");
-                            let supportedFormats = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+                    function loadAndRenderSlide(slideNum) {
+                        if (slideNum < 1 || slideNum > totalSlides) return;
+                        currentSlide = slideNum;
+                        $container.find(".pptx-counter").text(`${currentSlide} / ${totalSlides}`);
+                        $container.find(".pptx-prev-btn").prop("disabled", currentSlide === 1);
+                        $container.find(".pptx-next-btn").prop("disabled", currentSlide === totalSlides);
 
-                            for (let r = 0; r < relNodes.length; r++) {
-                                let target = relNodes[r].getAttribute("Target") || "";
-                                if (target.includes("media/")) {
-                                    let imgName = target.split("media/").pop();
-                                    let fileExt = imgName.split('.').pop().toLowerCase();
+                        if (slideCache[slideNum]) {
+                            $viewport.html(slideCache[slideNum]);
+                            return;
+                        }
 
-                                    // Only process supported image formats and skip videos/audios/binaries
-                                    if (supportedFormats.includes(fileExt)) {
-                                        let mediaFile = zip.file(`ppt/media/${imgName}`);
-                                        
-                                        // Skip single images larger than 10 MB to prevent V8 base64 memory crash
-                                        let sizeInBytes = 0;
-                                        if (mediaFile && mediaFile._data && mediaFile._data.uncompressedSize) {
-                                            sizeInBytes = mediaFile._data.uncompressedSize;
-                                        }
+                        $viewport.html(`
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-warning spinner-border-sm me-2" role="status"></div>
+                                <span class="small text-muted font-monospace">Loading Slide ${slideNum}...</span>
+                            </div>
+                        `);
 
-                                        if (mediaFile && (sizeInBytes === 0 || sizeInBytes < 10 * 1024 * 1024)) {
-                                            let mime = (fileExt === 'jpg' || fileExt === 'jpeg') ? 'image/jpeg' : (fileExt === 'png' ? 'image/png' : 'image/' + fileExt);
-                                            let imgP = mediaFile.async("base64").then(function(b64) {
-                                                slideImages.push(`data:${mime};base64,${b64}`);
-                                            }).catch(function(e) {
-                                                // Ignore individual image extraction errors
-                                            });
-                                            imagePromises.push(imgP);
+                        let targetItem = slideFiles[slideNum - 1];
+                        let slideNumStr = targetItem.path.match(/\d+/)[0];
+                        let relsPath = `ppt/slides/_rels/slide${slideNumStr}.xml.rels`;
+                        let relsFile = zip.file(relsPath);
+
+                        let relsPromise = relsFile ? relsFile.async("string") : Promise.resolve("");
+
+                        Promise.all([targetItem.file.async("string"), relsPromise]).then(function(results) {
+                            let xmlText = results[0];
+                            let relsXmlText = results[1];
+
+                            let parser = new DOMParser();
+                            let xmlDoc = parser.parseFromString(xmlText, "text/xml");
+
+                            let imagePromises = [];
+                            let slideImages = [];
+                            let relMap = {};
+                            let relsDict = {};
+
+                            if (relsXmlText) {
+                                let relsParser = new DOMParser();
+                                let relsDoc = relsParser.parseFromString(relsXmlText, "text/xml");
+                                let relNodes = relsDoc.getElementsByTagName("*");
+                                let supportedFormats = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+
+                                for (let r = 0; r < relNodes.length; r++) {
+                                    let relId = relNodes[r].getAttribute("Id");
+                                    let target = relNodes[r].getAttribute("Target") || "";
+                                    if (relId && target) {
+                                        relsDict[relId] = target;
+                                    }
+                                    if (target.includes("media/")) {
+                                        let imgName = target.split("media/").pop();
+                                        let fileExt = imgName.split('.').pop().toLowerCase();
+
+                                        if (supportedFormats.includes(fileExt)) {
+                                            let mediaFile = zip.file(`ppt/media/${imgName}`);
+                                            let sizeInBytes = 0;
+                                            if (mediaFile && mediaFile._data && mediaFile._data.uncompressedSize) {
+                                                sizeInBytes = mediaFile._data.uncompressedSize;
+                                            }
+
+                                            if (mediaFile && (sizeInBytes === 0 || sizeInBytes < 12 * 1024 * 1024)) {
+                                                let mime = (fileExt === 'jpg' || fileExt === 'jpeg') ? 'image/jpeg' : (fileExt === 'png' ? 'image/png' : 'image/' + fileExt);
+                                                let imgP = mediaFile.async("base64").then(function(b64) {
+                                                    let dataUrl = `data:${mime};base64,${b64}`;
+                                                    slideImages.push(dataUrl);
+                                                    if (relId) relMap[relId] = dataUrl;
+                                                }).catch(function(e) {});
+                                                imagePromises.push(imgP);
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        // Safety Timeout Guard (2.5 seconds): Never hang on Loading Slide X
-                        let mediaTimeout = new Promise(function(resolve) { setTimeout(resolve, 2500); });
+                            let mediaTimeout = new Promise(function(resolve) { setTimeout(resolve, 3000); });
 
-                        Promise.race([Promise.all(imagePromises), mediaTimeout]).then(function() {
-                            let title = slideTexts.length > 0 ? slideTexts[0] : `Slide ${slideNum}`;
-                            let bodyTexts = slideTexts.slice(1);
+                            Promise.race([Promise.all(imagePromises), mediaTimeout]).then(function() {
+                                let spTree = xmlDoc.getElementsByTagName("p:spTree")[0] || xmlDoc.getElementsByTagName("spTree")[0];
+                                let parsed = { shapes: [], connectors: [] };
+                                if (spTree) {
+                                    parsed = parseSlideElements(spTree, 0, 0, 1.0, 1.0, relsDict, slideFileMap);
+                                }
 
-                            let bodyHtml = '';
-                            if (bodyTexts.length > 0) {
-                                bodyHtml = '<ul class="mt-3 text-start fs-6" style="line-height: 1.8; max-width: 650px; margin: 0 auto; color: #334155;">' +
-                                    bodyTexts.map(t => `<li class="mb-2">${$('<div>').text(t).html()}</li>`).join('') +
-                                    '</ul>';
-                            }
+                                let textShapes = parsed.shapes.filter(s => (s.text && s.text.length > 0) || s.slideJump || s.hlinkUrl);
+                                let bgImage = slideImages.length > 0 ? slideImages[0] : null;
 
-                            let imagesHtml = '';
-                            if (slideImages.length > 0) {
-                                imagesHtml = '<div class="d-flex flex-wrap justify-content-center gap-3 mt-3 mb-2">' +
-                                    slideImages.map(img => `<img src="${img}" class="img-fluid rounded-3 border shadow-sm" style="max-height: 240px; object-fit: contain;">`).join('') +
-                                    '</div>';
-                            }
+                                let title = textShapes.find(s => s.text && s.text.length > 0) ? textShapes.find(s => s.text && s.text.length > 0).text : `Slide ${slideNum}`;
 
-                            if (!bodyHtml && !imagesHtml) {
-                                bodyHtml = '<p class="text-muted fst-italic mt-3">(Slide graphics / media content)</p>';
-                            }
+                                let slideCardHtml = '';
 
-                            let slideCardHtml = `
-                                <div class="bg-white p-4 p-md-5 rounded-4 shadow-sm border mx-auto text-center d-flex flex-column justify-content-center align-items-center" style="min-height: 380px; max-width: 780px; border-top: 6px solid var(--primary-gold) !important;">
-                                    <span class="badge bg-warning text-dark font-monospace mb-3 px-3 py-1">Slide ${slideNum} of ${totalSlides}</span>
-                                    <h4 class="fw-bold text-dark mb-3 text-break">${$('<div>').text(title).html()}</h4>
-                                    <div class="w-100">${imagesHtml}${bodyHtml}</div>
+                                if (bgImage && textShapes.length > 1) {
+                                    let overlayItemsHtml = '';
+
+                                    // Render connector lines
+                                    if (parsed.connectors.length > 0) {
+                                        let svgLines = parsed.connectors.map(c => `
+                                            <line x1="${c.x1}%" y1="${c.y1}%" x2="${c.x2}%" y2="${c.y2}%" stroke="${c.color}" stroke-width="2" stroke-linecap="round" />
+                                        `).join('');
+                                        overlayItemsHtml += `
+                                            <svg class="position-absolute top-0 start-0 w-100 h-100" style="pointer-events: none; z-index: 2;">
+                                                ${svgLines}
+                                            </svg>
+                                        `;
+                                    }
+
+                                    // Render visual dots & geometric markers (excluding shapes with hyperlinks)
+                                    let visualDots = parsed.shapes.filter(s => !s.text && !s.slideJump && !s.hlinkUrl && (s.geom === 'ellipse' || s.geom === 'triangle' || s.geom === 'diamond'));
+                                    visualDots.forEach(dot => {
+                                        let dotBg = dot.fill || '#ff0000';
+                                        let isSmallDot = dot.width < 3;
+                                        if (dot.geom === 'ellipse') {
+                                            overlayItemsHtml += `
+                                                <div style="
+                                                    position: absolute;
+                                                    left: ${dot.left}%;
+                                                    top: ${dot.top}%;
+                                                    width: ${isSmallDot ? '8px' : Math.max(8, dot.width * 8) + 'px'};
+                                                    height: ${isSmallDot ? '8px' : Math.max(8, dot.height * 8) + 'px'};
+                                                    background-color: ${dotBg};
+                                                    border: 1px solid #ffffff;
+                                                    border-radius: 50%;
+                                                    transform: translate(-50%, -50%);
+                                                    box-shadow: 0 0 3px rgba(0,0,0,0.6);
+                                                    z-index: 3;
+                                                    pointer-events: none;
+                                                "></div>
+                                            `;
+                                        } else if (dot.geom === 'triangle') {
+                                            overlayItemsHtml += `
+                                                <div style="
+                                                    position: absolute;
+                                                    left: ${dot.left}%;
+                                                    top: ${dot.top}%;
+                                                    width: 0;
+                                                    height: 0;
+                                                    border-left: 5px solid transparent;
+                                                    border-right: 5px solid transparent;
+                                                    border-bottom: 9px solid ${dotBg};
+                                                    transform: translate(-50%, -50%);
+                                                    filter: drop-shadow(0 0 2px rgba(0,0,0,0.8));
+                                                    z-index: 3;
+                                                    pointer-events: none;
+                                                "></div>
+                                            `;
+                                        }
+                                    });
+
+                                    // Render text labels, point badges, and interactive navigation elements
+                                    textShapes.forEach((shape, sIdx) => {
+                                        let isHeader = sIdx === 0 && shape.top < 12 && !shape.slideJump && !shape.hlinkUrl;
+                                        let hasLink = !!(shape.slideJump || shape.hlinkUrl);
+                                        let isArrow = shape.geom && shape.geom.toLowerCase().includes('arrow');
+                                        let badgeBg = shape.fill;
+                                        let textColor = shape.fontColor;
+
+                                        if (!badgeBg) {
+                                            if (isHeader) {
+                                                badgeBg = 'rgba(0, 0, 0, 0.7)';
+                                                textColor = '#ffeb3b';
+                                            } else if (hasLink) {
+                                                badgeBg = '#ffff00';
+                                                textColor = '#000000';
+                                            } else {
+                                                badgeBg = 'transparent';
+                                                if (!textColor) textColor = '#ffffff';
+                                            }
+                                        } else {
+                                            if (!textColor) textColor = (badgeBg === '#ffff00' || badgeBg === '#ffffff') ? '#000000' : '#ffffff';
+                                        }
+
+                                        let transformStr = 'translate(-50%, -50%)';
+                                        if (shape.rot && Math.abs(shape.rot) > 1) {
+                                            transformStr += ` rotate(${shape.rot}deg)`;
+                                        }
+
+                                        let textShadowStyle = (badgeBg === 'transparent') ? 'text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 1px 4px rgba(0,0,0,0.9);' : '';
+                                        let borderStyle = (hasLink) ? 'border: 2px solid #000000;' : ((badgeBg !== 'transparent' && !isHeader) ? 'border: 1px solid rgba(0,0,0,0.4);' : '');
+                                        let radiusStyle = isHeader ? 'border-radius: 6px;' : (hasLink ? 'border-radius: 8px;' : 'border-radius: 4px;');
+                                        let fontPx = isHeader ? 'clamp(14px, 2vw, 22px)' : (shape.fontSize > 1000 ? 'clamp(9px, 1.1vw, 14px)' : 'clamp(7px, 0.8vw, 11px)');
+                                        let fontWeight = '700';
+
+                                        let posX = shape.left + (shape.width / 2);
+                                        let posY = shape.top + (shape.height / 2);
+
+                                        let linkAttrs = '';
+                                        let linkClass = '';
+                                        let titleAttr = shape.text ? $('<div>').text(shape.text).html() : '';
+
+                                        if (shape.slideJump) {
+                                            linkAttrs = `data-slide-jump="${shape.slideJump}"`;
+                                            linkClass = 'pptx-clickable';
+                                            titleAttr = `Jump to Slide ${shape.slideJump}` + (shape.text ? `: ${shape.text}` : '');
+                                        } else if (shape.hlinkUrl) {
+                                            linkAttrs = `data-hlink-url="${$('<div>').text(shape.hlinkUrl).html()}"`;
+                                            linkClass = 'pptx-clickable';
+                                            titleAttr = `Open: ${shape.hlinkUrl}`;
+                                        }
+
+                                        let innerContent = $('<div>').text(shape.text).html();
+                                        if (!innerContent && isArrow) {
+                                            innerContent = `<i class="bi bi-arrow-right fs-5" style="color: ${textColor};"></i>`;
+                                        }
+
+                                        overlayItemsHtml += `
+                                            <div ${linkAttrs} class="${linkClass}" title="${titleAttr}" style="
+                                                position: absolute;
+                                                left: ${posX}%;
+                                                top: ${posY}%;
+                                                transform: ${transformStr};
+                                                background-color: ${badgeBg};
+                                                color: ${textColor};
+                                                font-size: ${fontPx};
+                                                font-weight: ${fontWeight};
+                                                ${textShadowStyle}
+                                                ${borderStyle}
+                                                ${radiusStyle}
+                                                padding: ${isHeader ? '4px 14px' : (hasLink ? '5px 12px' : (badgeBg !== 'transparent' ? '2px 5px' : '1px 2px'))};
+                                                white-space: nowrap;
+                                                pointer-events: auto;
+                                                cursor: ${hasLink ? 'pointer' : 'default'};
+                                                z-index: ${hasLink ? 20 : (isHeader ? 10 : 5)};
+                                                letter-spacing: 0.2px;
+                                                box-shadow: ${hasLink ? '0 4px 12px rgba(0,0,0,0.5)' : (badgeBg !== 'transparent' && !isHeader ? '0 1px 4px rgba(0,0,0,0.4)' : 'none')};
+                                            ">
+                                                ${innerContent}
+                                                ${hasLink && shape.slideJump && shape.text ? '<i class="bi bi-arrow-up-right-circle ms-1 small" style="opacity: 0.85;"></i>' : ''}
+                                            </div>
+                                        `;
+                                    });
+
+                                    let listId = "slideTextListModal_" + slideNum + "_" + Math.floor(Math.random() * 10000);
+
+                                    slideCardHtml = `
+                                        <div class="pptx-slide-item text-start mx-auto mb-3" data-slide="${slideNum}" style="max-width: 950px;">
+                                            <div class="card border-0 rounded-4 shadow-sm overflow-hidden bg-white">
+                                                <div class="card-header bg-dark text-white d-flex align-items-center justify-content-between py-2 px-3">
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <span class="badge bg-warning text-dark font-monospace">Slide ${slideNum}</span>
+                                                        <span class="fw-bold text-truncate text-white small" style="max-width: 320px;">${$('<div>').text(title).html()}</span>
+                                                    </div>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <span class="badge bg-secondary font-monospace">${textShapes.length} Markers & Points</span>
+                                                        <button class="btn btn-outline-light btn-sm rounded-pill py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#${listId}" style="font-size: 0.75rem;">
+                                                            <i class="bi bi-list-ul me-1"></i> View Text List
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Interactive Map Canvas with Overlays -->
+                                                <div class="pptx-map-canvas-container position-relative w-100 overflow-hidden bg-black" style="aspect-ratio: ${slideW} / ${slideH}; user-select: none;">
+                                                    <img src="${bgImage}" class="w-100 h-100 d-block" style="object-fit: fill;" alt="Slide ${slideNum} Map">
+                                                    ${overlayItemsHtml}
+                                                </div>
+
+                                                <!-- Collapsible Text List -->
+                                                <div class="collapse bg-light border-top" id="${listId}">
+                                                    <div class="p-3">
+                                                        <h6 class="fw-bold text-muted small mb-2"><i class="bi bi-geo-alt-fill text-danger me-1"></i> Identified Points & Features on Map:</h6>
+                                                        <div class="d-flex flex-wrap gap-1">
+                                                            ${textShapes.map(s => `<span class="badge bg-white text-dark border shadow-xs small">${$('<div>').text(s.text).html()}</span>`).join('')}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                } else {
+                                    // Fallback for text-heavy or bullet-only slides without map background
+                                    let allTextNodes = xmlDoc.getElementsByTagName("*");
+                                    let slideTexts = [];
+                                    for (let i = 0; i < allTextNodes.length; i++) {
+                                        let node = allTextNodes[i];
+                                        let tTag = node.localName || node.nodeName;
+                                        if (tTag === "t" || tTag.endsWith(":t")) {
+                                            let t = node.textContent ? node.textContent.trim() : "";
+                                            if (t) slideTexts.push(t);
+                                        }
+                                    }
+
+                                    let slideTitle = slideTexts.length > 0 ? slideTexts[0] : `Slide ${slideNum}`;
+                                    let bodyTexts = slideTexts.slice(1);
+
+                                    let bodyHtml = '';
+                                    if (bodyTexts.length > 0) {
+                                        bodyHtml = '<ul class="mt-3 text-start fs-6" style="line-height: 1.8; max-width: 680px; margin: 0 auto; color: #334155;">' +
+                                            bodyTexts.map(t => `<li class="mb-2">${$('<div>').text(t).html()}</li>`).join('') +
+                                            '</ul>';
+                                    }
+
+                                    let imagesHtml = '';
+                                    if (slideImages.length > 0) {
+                                        imagesHtml = '<div class="d-flex flex-wrap justify-content-center gap-3 mt-3 mb-2">' +
+                                            slideImages.map(img => `<img src="${img}" class="img-fluid rounded-3 border shadow-sm" style="max-height: 240px; object-fit: contain;">`).join('') +
+                                            '</div>';
+                                    }
+
+                                    if (!bodyHtml && !imagesHtml) {
+                                        bodyHtml = '<p class="text-muted fst-italic mt-3">(Slide graphics / media content)</p>';
+                                    }
+
+                                    slideCardHtml = `
+                                        <div class="pptx-fallback-card bg-white p-4 p-md-5 rounded-4 shadow-sm border mx-auto text-center d-flex flex-column justify-content-center align-items-center" style="min-height: 380px; max-width: 780px; border-top: 6px solid var(--primary-gold) !important;">
+                                            <span class="badge bg-warning text-dark font-monospace mb-3 px-3 py-1">Slide ${slideNum} of ${totalSlides}</span>
+                                            <h4 class="fw-bold text-dark mb-3 text-break">${$('<div>').text(slideTitle).html()}</h4>
+                                            <div class="w-100">${imagesHtml}${bodyHtml}</div>
+                                        </div>
+                                    `;
+                                }
+
+                                slideCache[slideNum] = slideCardHtml;
+                                $viewport.html(slideCardHtml);
+                            });
+                        }).catch(function(err) {
+                            $viewport.html(`
+                                <div class="bg-white p-4 rounded-4 border text-center">
+                                    <p class="text-muted mb-0">Could not parse contents for Slide ${slideNum}.</p>
                                 </div>
-                            `;
-
-                            slideCache[slideNum] = slideCardHtml;
-                            $viewport.html(slideCardHtml);
+                            `);
                         });
-                    }).catch(function(err) {
-                        $viewport.html(`
-                            <div class="bg-white p-4 rounded-4 border text-center">
-                                <p class="text-muted mb-0">Could not parse contents for Slide ${slideNum}.</p>
-                            </div>
-                        `);
+                    }
+
+                    // Delegated event handlers for PPTX interactive elements
+                    $viewport.off("click", "[data-slide-jump]").on("click", "[data-slide-jump]", function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        let targetSlide = parseInt($(this).attr("data-slide-jump"), 10);
+                        if (targetSlide && targetSlide >= 1 && targetSlide <= totalSlides) {
+                            loadAndRenderSlide(targetSlide);
+                        }
                     });
-                }
 
-                loadAndRenderSlide(1);
+                    $viewport.off("click", "[data-hlink-url]").on("click", "[data-hlink-url]", function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        let url = $(this).attr("data-hlink-url");
+                        if (url) {
+                            window.open(url, "_blank");
+                        }
+                    });
 
-                $container.find(".pptx-next-btn").on("click", function() {
-                    if (currentSlide < totalSlides) loadAndRenderSlide(currentSlide + 1);
-                });
+                    function goToNextSlide() {
+                        if (currentSlide < totalSlides) loadAndRenderSlide(currentSlide + 1);
+                    }
 
-                $container.find(".pptx-prev-btn").on("click", function() {
-                    if (currentSlide > 1) loadAndRenderSlide(currentSlide - 1);
+                    function goToPrevSlide() {
+                        if (currentSlide > 1) loadAndRenderSlide(currentSlide - 1);
+                    }
+
+                    loadAndRenderSlide(1);
+
+                    $container.find(".pptx-next-btn").on("click", function() {
+                        goToNextSlide();
+                    });
+
+                    $container.find(".pptx-prev-btn").on("click", function() {
+                        goToPrevSlide();
+                    });
+
+                    // Keyboard shortcuts navigation (PowerPoint style)
+                    $(document).off("keydown.pptxViewer").on("keydown.pptxViewer", function(e) {
+                        // Only handle shortcuts if preview modal is visible and PPTX viewer is present
+                        if (!$('#filePreviewModal').is(':visible') || !$("#" + deckContainerId).length) return;
+
+                        // Ignore when focus is inside text inputs, textareas, etc.
+                        let activeTag = (document.activeElement && document.activeElement.tagName) ? document.activeElement.tagName.toLowerCase() : '';
+                        if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') return;
+
+                        switch (e.key) {
+                            case "ArrowRight":
+                            case "ArrowDown":
+                            case "PageDown":
+                            case " ": // Spacebar advances slide
+                            case "n":
+                            case "N":
+                                e.preventDefault();
+                                goToNextSlide();
+                                break;
+                            case "ArrowLeft":
+                            case "ArrowUp":
+                            case "PageUp":
+                            case "Backspace":
+                            case "p":
+                            case "P":
+                                e.preventDefault();
+                                goToPrevSlide();
+                                break;
+                            case "Home":
+                                e.preventDefault();
+                                loadAndRenderSlide(1);
+                                break;
+                            case "End":
+                                e.preventDefault();
+                                loadAndRenderSlide(totalSlides);
+                                break;
+                            case "f":
+                            case "F":
+                                e.preventDefault();
+                                $('#modalFullscreenBtn').trigger('click');
+                                break;
+                            case "Escape":
+                                if ($('#filePreviewModal').hasClass('modal-is-fullscreen')) {
+                                    e.preventDefault();
+                                    $('#modalFullscreenBtn').trigger('click');
+                                }
+                                break;
+                        }
+                    });
+                }).catch(function(e) {
+                    $spinner.hide();
+                    showPreviewErrorCard("PowerPoint Presentation", "PowerPoint file ready for viewing or download.", cleanName, fileUrl, ext);
                 });
 
             }).catch(function(err) {
@@ -1250,8 +1923,27 @@
         }
 
         $(document).ready(function() {
+            function toggleModalFullscreen() {
+                let $modal = $('#filePreviewModal');
+                $modal.toggleClass('modal-is-fullscreen');
+                let isFull = $modal.hasClass('modal-is-fullscreen');
+                let iconClass = isFull ? 'bi-fullscreen-exit' : 'bi-arrows-fullscreen';
+                $('#modalFullscreenBtn i').attr('class', 'bi ' + iconClass);
+                $('#previewFullscreenBtn').html(`<i class="bi ${iconClass} me-1"></i> ${isFull ? 'Exit Fullscreen' : 'Fullscreen'}`);
+            }
+
+            $(document).on('click', '#modalFullscreenBtn, #previewFullscreenBtn, .pptx-fullscreen-exit-btn', function(e) {
+                e.preventDefault();
+                toggleModalFullscreen();
+            });
+
             $('#filePreviewModal').on('hidden.bs.modal', function () {
                 $('#filePreviewContent').html('');
+                $(document).off("keydown.pptxViewer");
+                let $modal = $('#filePreviewModal');
+                $modal.removeClass('modal-is-fullscreen');
+                $('#modalFullscreenBtn i').attr('class', 'bi bi-arrows-fullscreen');
+                $('#previewFullscreenBtn').html('<i class="bi bi-arrows-fullscreen me-1"></i> Fullscreen');
             });
 
             // Live file selection preview in Upload File Modal
