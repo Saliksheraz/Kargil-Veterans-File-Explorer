@@ -415,7 +415,7 @@ def pptx_to_pdf(request):
     if os.path.exists(cached_pdf_path) and os.path.getsize(cached_pdf_path) > 0:
         orig_to_new_map = None
         if source_path.lower().endswith('.pptx'):
-            _, orig_to_new_map = get_pptx_animation_map(source_path)
+            _, orig_to_new_map, _, _ = get_pptx_animation_map(source_path)
         slide_links = extract_pptx_links(source_path, orig_to_new_map)
         return JsonResponse({
             'success': True,
