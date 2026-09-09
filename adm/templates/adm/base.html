@@ -658,20 +658,24 @@
         </div>
     </div>
 
-    <!-- Folder Files Hover Preview Popup Card -->
-    <div id="folderFilesHoverCard" class="shadow-lg border rounded-4 bg-white overflow-hidden position-absolute" style="display: none; z-index: 1080; width: 310px; backdrop-filter: blur(10px); transition: opacity 0.15s ease;">
+    <!-- Folder Tree Hover Preview Popup Card -->
+    <div id="folderFilesHoverCard" class="shadow-lg border rounded-4 bg-white overflow-hidden position-absolute" style="display: none; z-index: 1080; width: 340px; backdrop-filter: blur(10px); transition: opacity 0.15s ease;">
         <div class="px-3 py-2 border-bottom d-flex align-items-center justify-content-between" style="background-color: var(--army-green); color: white;">
             <div class="d-flex align-items-center gap-2 overflow-hidden me-2">
-                <i class="bi bi-folder-fill text-warning fs-6"></i>
+                <i class="bi bi-folder2-open text-warning fs-6"></i>
                 <span id="hoverCardFolderName" class="fw-bold extra-small text-truncate text-white">Folder</span>
             </div>
-            <span id="hoverCardFileCount" class="badge bg-warning text-dark font-monospace extra-small flex-shrink-0">0 Files</span>
+            <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                <span id="hoverCardFolderCount" class="badge bg-white text-dark font-monospace extra-small" style="display: none;">0 Subfolders</span>
+                <span id="hoverCardFileCount" class="badge bg-warning text-dark font-monospace extra-small">0 Files</span>
+            </div>
         </div>
-        <div id="hoverCardFilesList" class="p-2 overflow-auto" style="max-height: 240px; background-color: #fafafa;">
-            <!-- Files dynamically injected here -->
+        <div id="hoverCardFilesList" class="p-2 overflow-auto" style="max-height: 300px; background-color: #fafbfc;">
+            <!-- Recursive Tree dynamically injected here -->
         </div>
-        <div class="px-3 py-1-5 border-top bg-light text-center extra-small text-muted">
-            <i class="bi bi-cursor-fill me-1 text-primary"></i> Click any file to preview
+        <div class="px-3 py-1-5 border-top bg-light d-flex align-items-center justify-content-between extra-small text-muted">
+            <span><i class="bi bi-diagram-3-fill me-1 text-secondary"></i>Folder Hierarchy</span>
+            <span><i class="bi bi-cursor-fill me-1 text-primary"></i>Click file to preview</span>
         </div>
     </div>
 
