@@ -838,26 +838,122 @@
             });
         }
 
-        function showPreviewErrorCard(title, message, cleanName, url, ext) {
+        function showLibreOfficeRequiredCard(cleanName, url) {
             let $content = $("#filePreviewContent");
             let $spinner = $("#previewLoadingSpinner");
             $spinner.hide();
 
             $content.html(`
-                <div class="text-center py-5 px-4 bg-light rounded-4 w-100 my-2 border shadow-sm" style="max-width: 600px; min-height: 350px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-                    <div class="mb-3 text-danger">
-                        <i class="bi bi-exclamation-triangle-fill" style="font-size: 4.5rem;"></i>
+                <div class="py-4 px-4 bg-white rounded-4 w-100 my-2 border shadow-sm mx-auto" style="max-width: 680px;">
+                    <div class="text-center mb-3">
+                        <div class="d-inline-flex p-3 rounded-circle bg-danger-subtle text-danger mb-2">
+                            <i class="bi bi-exclamation-octagon-fill fs-1"></i>
+                        </div>
+                        <h4 class="fw-bold text-danger mb-1">LibreOffice is Required</h4>
+                        <p class="text-muted small mb-0">
+                            To preview PowerPoint presentations (<span class="fw-semibold text-dark">${cleanName}</span>) with native formatting, hyperlinks, and slide stepper animations, <strong>LibreOffice</strong> must be installed on the server/PC running this system.
+                        </p>
                     </div>
-                    <h5 class="fw-bold text-dark mb-2 text-break">${title}</h5>
-                    <p class="text-muted mb-4 fs-6" style="max-width: 480px; margin: 0 auto;">
-                        ${message}
-                    </p>
-                    <div class="d-flex justify-content-center gap-3 flex-wrap">
-                        <a href="${url}" target="_blank" class="btn btn-outline-dark rounded-pill px-4 py-2 font-weight-bold">
-                            <i class="bi bi-box-arrow-up-right me-1"></i> Try Opening in New Tab
-                        </a>
+
+                    <div class="alert alert-warning border-0 rounded-3 py-2 px-3 small d-flex align-items-center gap-2 mb-3">
+                        <i class="bi bi-shield-lock-fill text-warning fs-5 flex-shrink-0"></i>
+                        <span>This file cannot be rendered until LibreOffice is installed. Please follow the instructions below:</span>
+                    </div>
+
+                    <!-- Installation Procedure Tabs -->
+                    <div class="card border rounded-3 overflow-hidden text-start mb-3">
+                        <div class="card-header bg-light border-bottom py-2">
+                            <ul class="nav nav-pills card-header-pills nav-fill extra-small" id="libreInstallTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active py-1 px-2 fw-semibold" id="tab-win-tab" data-bs-toggle="pill" data-bs-target="#tab-win" type="button" role="tab">
+                                        <i class="bi bi-windows me-1"></i> Windows
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link py-1 px-2 fw-semibold" id="tab-linux-tab" data-bs-toggle="pill" data-bs-target="#tab-linux" type="button" role="tab">
+                                        <i class="bi bi-ubuntu me-1"></i> Linux / Ubuntu
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link py-1 px-2 fw-semibold" id="tab-mac-tab" data-bs-toggle="pill" data-bs-target="#tab-mac" type="button" role="tab">
+                                        <i class="bi bi-apple me-1"></i> macOS
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="card-body p-3 small tab-content" id="libreInstallTabContent">
+                            <!-- Windows Instructions -->
+                            <div class="tab-pane fade show active" id="tab-win" role="tabpanel">
+                                <ol class="mb-0 ps-3">
+                                    <li class="mb-2">
+                                        Download the official installer for Windows:
+                                        <div class="mt-1">
+                                            <a href="https://www.libreoffice.org/download/download-libreoffice/" target="_blank" class="btn btn-sm btn-primary rounded-pill px-3 py-1">
+                                                <i class="bi bi-box-arrow-up-right me-1"></i> Download LibreOffice for Windows
+                                            </a>
+                                        </div>
+                                    </li>
+                                    <li class="mb-2">
+                                        Run the downloaded <strong>.msi</strong> file and follow the default installation steps (it installs to <code>C:\\Program Files\\LibreOffice</code>).
+                                    </li>
+                                    <li>
+                                        Once the installation is complete, <strong>restart your Django terminal or web browser</strong> and refresh the page.
+                                    </li>
+                                </ol>
+                            </div>
+
+                            <!-- Linux Instructions -->
+                            <div class="tab-pane fade" id="tab-linux" role="tabpanel">
+                                <ol class="mb-0 ps-3">
+                                    <li class="mb-2">
+                                        Open your terminal and run the following command for Ubuntu / Debian:
+                                        <div class="bg-dark text-light p-2 rounded-3 mt-1 font-monospace extra-small user-select-all">
+                                            sudo apt update &amp;&amp; sudo apt install libreoffice -y
+                                        </div>
+                                    </li>
+                                    <li class="mb-2">
+                                        For Fedora / RedHat / CentOS:
+                                        <div class="bg-dark text-light p-2 rounded-3 mt-1 font-monospace extra-small user-select-all">
+                                            sudo dnf install libreoffice -y
+                                        </div>
+                                    </li>
+                                    <li>
+                                        Verify installation with <code>soffice --version</code>, then refresh this page.
+                                    </li>
+                                </ol>
+                            </div>
+
+                            <!-- macOS Instructions -->
+                            <div class="tab-pane fade" id="tab-mac" role="tabpanel">
+                                <ol class="mb-0 ps-3">
+                                    <li class="mb-2">
+                                        If you use Homebrew, open Terminal and run:
+                                        <div class="bg-dark text-light p-2 rounded-3 mt-1 font-monospace extra-small user-select-all">
+                                            brew install --cask libreoffice
+                                        </div>
+                                    </li>
+                                    <li class="mb-2">
+                                        Or download the <strong>.dmg</strong> package directly from the official website:
+                                        <div class="mt-1">
+                                            <a href="https://www.libreoffice.org/download/download-libreoffice/" target="_blank" class="btn btn-sm btn-primary rounded-pill px-3 py-1">
+                                                <i class="bi bi-box-arrow-up-right me-1"></i> Download LibreOffice for macOS
+                                            </a>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        After installing, refresh this page.
+                                    </li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-center gap-2">
+                        <button type="button" class="btn btn-outline-secondary rounded-pill px-4 py-2 font-weight-bold" onclick="location.reload();">
+                            <i class="bi bi-arrow-clockwise me-1"></i> I Installed It, Refresh Page
+                        </button>
                         <a href="${url}" download="${cleanName}" class="btn btn-gold-action rounded-pill px-4 py-2 font-weight-bold">
-                            <i class="bi bi-download me-1"></i> Download File
+                            <i class="bi bi-download me-1"></i> Download File Instead
                         </a>
                     </div>
                 </div>
@@ -2004,7 +2100,15 @@
                     },
                     error: function(xhr, status, error) {
                         console.warn("[PPTX Converter] Server conversion notice:", xhr.status, xhr.responseJSON || xhr.responseText || error);
-                        // Fallback to client-side JSZip DrawingML renderer if server conversion is unavailable
+                        let resp = xhr.responseJSON;
+                        if (xhr.status === 501 || (resp && resp.error_code === 'libreoffice_not_installed')) {
+                            // LibreOffice is not installed: show dedicated alert with install procedure and do NOT open file
+                            $spinner.hide();
+                            showLibreOfficeRequiredCard(cleanName, url);
+                            return;
+                        }
+
+                        // Fallback to client-side JSZip DrawingML renderer if other error occurred
                         fetchWithProgress(url, updateProgress)
                             .then(arrayBuffer => {
                                 renderPptxSlides(arrayBuffer, cleanName, $content, $spinner, url, ext);

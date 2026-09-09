@@ -427,7 +427,24 @@ def pptx_to_pdf(request):
 
     soffice_exe = find_libreoffice()
     if not soffice_exe:
-        return JsonResponse({'error': 'LibreOffice engine not installed on server'}, status=501)
+        return JsonResponse({
+            'error': 'LibreOffice engine is not installed on the system.',
+            'error_code': 'libreoffice_not_installed',
+            'install_instructions': {
+                'windows': [
+                    'Download LibreOffice from the official website: https://www.libreoffice.org/download/download-libreoffice/',
+                    'Run the installer (.msi file) and complete the standard installation (installed to C:\\Program Files\\LibreOffice).',
+                    'Restart your terminal/server and try previewing again.'
+                ],
+                'linux': [
+                    'Ubuntu/Debian: sudo apt update && sudo apt install libreoffice -y',
+                    'Fedora/RHEL: sudo dnf install libreoffice -y'
+                ],
+                'macos': [
+                    'Homebrew: brew install --cask libreoffice'
+                ]
+            }
+        }, status=501)
 
     temp_expanded_pptx = None
     input_to_convert = source_path
