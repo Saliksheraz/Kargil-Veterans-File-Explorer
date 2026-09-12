@@ -1,0 +1,469 @@
+/* 360 Degree Video Player Styles - Kargil Veterans File Explorer */
+
+:root {
+    --v360-primary: #d4af37;
+    --v360-primary-hover: #b8972e;
+    --v360-bg: #0d1310;
+    --v360-surface: rgba(20, 32, 25, 0.85);
+    --v360-border: rgba(212, 175, 55, 0.25);
+    --v360-text: #ffffff;
+    --v360-text-muted: rgba(255, 255, 255, 0.65);
+}
+
+.video360-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
+    background-color: var(--v360-bg);
+    border-radius: 12px;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    outline: none;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.video360-wrapper:fullscreen,
+.video360-wrapper:-webkit-full-screen {
+    width: 100vw !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    max-height: 100vh !important;
+}
+
+/* Three.js Canvas Container */
+.video360-canvas-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+    touch-action: none;
+    z-index: 1;
+}
+
+.video360-canvas-container:active {
+    cursor: grabbing;
+}
+
+.video360-canvas-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+}
+
+/* Flat 2D Video Container (When in flat mode) */
+.video360-flat-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #000000;
+    z-index: 1;
+}
+
+.video360-flat-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    cursor: pointer;
+}
+
+/* Hidden master video element for WebGL texture */
+.video360-hidden-video {
+    display: none;
+}
+
+/* Top Badge & Compass Overlay */
+.video360-top-bar {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    right: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 10;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.video360-badge-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    pointer-events: auto;
+}
+
+.video360-badge {
+    background: var(--v360-surface);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--v360-border);
+    color: var(--v360-primary);
+    padding: 6px 12px;
+    border-radius: 30px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    letter-spacing: 0.3px;
+}
+
+.video360-compass-btn {
+    background: var(--v360-surface);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--v360-border);
+    color: var(--v360-text);
+    padding: 6px 12px;
+    border-radius: 30px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.video360-compass-btn:hover {
+    background: rgba(212, 175, 55, 0.2);
+    color: var(--v360-primary);
+    border-color: var(--v360-primary);
+}
+
+.video360-compass-icon {
+    display: inline-block;
+    transition: transform 0.1s linear;
+}
+
+/* Interactive Hint Badge */
+.video360-hint-overlay {
+    position: absolute;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    padding: 8px 18px;
+    border-radius: 30px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    pointer-events: none;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    animation: v360FadeIn 0.4s ease;
+    transition: opacity 0.5s ease;
+}
+
+@keyframes v360FadeIn {
+    from { opacity: 0; transform: translate(-50%, -10px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Center Big Play Button */
+.video360-center-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: rgba(20, 32, 25, 0.85);
+    backdrop-filter: blur(6px);
+    border: 2px solid var(--v360-primary);
+    color: var(--v360-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    cursor: pointer;
+    z-index: 12;
+    pointer-events: auto !important;
+    transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.video360-center-play:hover {
+    transform: translate(-50%, -50%) scale(1.12);
+    background: var(--v360-primary);
+    color: #121e18;
+    box-shadow: 0 8px 25px rgba(212, 175, 55, 0.5);
+}
+
+.video360-center-play i {
+    margin-left: 4px;
+}
+
+/* Bottom Controls Toolbar */
+.video360-controls-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 16px 18px 12px 18px;
+    background: linear-gradient(to top, rgba(13, 19, 16, 0.95) 0%, rgba(13, 19, 16, 0.7) 70%, transparent 100%);
+    z-index: 15;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.video360-controls-hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(10px);
+}
+
+/* Scrubber / Progress Bar */
+.video360-progress-container {
+    position: relative;
+    width: 100%;
+    height: 8px;
+    cursor: pointer;
+    padding: 6px 0;
+    display: flex;
+    align-items: center;
+}
+
+.video360-progress-bg {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+    transition: height 0.15s ease;
+}
+
+.video360-progress-container:hover .video360-progress-bg {
+    height: 6px;
+}
+
+.video360-progress-buffer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0%;
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 4px;
+    transition: width 0.2s ease;
+}
+
+.video360-progress-played {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0%;
+    background: var(--v360-primary);
+    border-radius: 4px;
+}
+
+.video360-progress-thumb {
+    position: absolute;
+    top: 50%;
+    left: 0%;
+    transform: translate(-50%, -50%) scale(0);
+    width: 14px;
+    height: 14px;
+    background: #ffffff;
+    border: 2px solid var(--v360-primary);
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(0,0,0,0.5);
+    transition: transform 0.15s ease;
+    pointer-events: none;
+}
+
+.video360-progress-container:hover .video360-progress-thumb {
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.video360-time-tooltip {
+    position: absolute;
+    bottom: 24px;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.85);
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-family: monospace;
+    padding: 3px 8px;
+    border-radius: 4px;
+    pointer-events: none;
+    display: none;
+    white-space: nowrap;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Controls Buttons Row */
+.video360-buttons-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.video360-buttons-left,
+.video360-buttons-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.video360-btn {
+    background: transparent;
+    border: none;
+    color: var(--v360-text);
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.video360-btn:hover {
+    color: var(--v360-primary);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.video360-btn.active {
+    color: var(--v360-primary);
+    background: rgba(212, 175, 55, 0.2);
+    border: 1px solid var(--v360-border);
+}
+
+/* Time Display */
+.video360-time-display {
+    color: var(--v360-text);
+    font-family: monospace;
+    font-size: 0.82rem;
+    letter-spacing: 0.5px;
+    padding: 0 4px;
+    user-select: none;
+}
+
+/* Volume Container */
+.video360-volume-box {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.video360-volume-slider {
+    width: 65px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.video360-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--v360-primary);
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+}
+
+.video360-volume-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--v360-primary);
+    border: none;
+    cursor: pointer;
+}
+
+/* Mode Switcher Pill (360 vs Flat) */
+.video360-mode-toggle {
+    display: inline-flex;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    padding: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.video360-mode-btn {
+    border: none;
+    background: transparent;
+    color: var(--v360-text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.video360-mode-btn.active {
+    background: var(--v360-primary);
+    color: #121e18;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+
+/* Speed Dropdown */
+.video360-speed-btn {
+    font-size: 0.78rem;
+    font-weight: 700;
+    font-family: monospace;
+    width: auto;
+    padding: 4px 8px;
+    height: 32px;
+}
+
+/* Auto-Rotate Spin Animation */
+@keyframes v360Spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.video360-spinning {
+    animation: v360Spin 4s linear infinite;
+    color: var(--v360-primary) !important;
+}
+
+/* 360 File Card Badges */
+.badge-360-video {
+    background: linear-gradient(135deg, #1b3022 0%, #2a4d36 100%) !important;
+    color: #d4af37 !important;
+    border: 1px solid rgba(212, 175, 55, 0.4) !important;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}

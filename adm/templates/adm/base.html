@@ -11,16 +11,14 @@
     <link rel="icon" type="image/svg+xml" href="{% static 'favicon.svg' %}">
     <link rel="alternate icon" type="image/x-icon" href="{% static 'favicon.svg' %}">
 
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Local Bootstrap CSS -->
+    <link href="{% static 'vendor/bootstrap/css/bootstrap.min.css' %}" rel="stylesheet">
 
-    <!-- Bootstrap Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Local Bootstrap Icons -->
+    <link href="{% static 'vendor/bootstrap-icons/bootstrap-icons.css' %}" rel="stylesheet">
 
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800;900&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Local 360 Degree Video Player CSS -->
+    <link href="{% static 'css/video360_player.css' %}" rel="stylesheet">
 
     <style>
         :root {
@@ -686,20 +684,26 @@
         </div>
     </footer>
 
-    <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <!-- Local jQuery -->
+    <script src="{% static 'vendor/jquery/jquery-3.7.1.min.js' %}"></script>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Local Bootstrap JS -->
+    <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
 
-    <!-- Mammoth.js for Word (.docx) Rendering -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-    <!-- SheetJS for Excel (.xlsx/.xls/.csv) Rendering -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <!-- JSZip for PowerPoint (.pptx) Slide Deck Parsing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <!-- PDF.js for Reliable PDF Canvas Rendering -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- Local Three.js (for 360 Degree Panoramic Video & WebGL) -->
+    <script src="{% static 'vendor/three/three.min.js' %}"></script>
+
+    <!-- Local 360 Degree Video Player Engine -->
+    <script src="{% static 'js/video360_player.js' %}"></script>
+
+    <!-- Local Mammoth.js for Word (.docx) Rendering -->
+    <script src="{% static 'vendor/mammoth/mammoth.browser.min.js' %}"></script>
+    <!-- Local SheetJS for Excel (.xlsx/.xls/.csv) Rendering -->
+    <script src="{% static 'vendor/xlsx/xlsx.full.min.js' %}"></script>
+    <!-- Local JSZip for PowerPoint (.pptx) Slide Deck Parsing -->
+    <script src="{% static 'vendor/jszip/jszip.min.js' %}"></script>
+    <!-- Local PDF.js for Reliable PDF Canvas Rendering -->
+    <script src="{% static 'vendor/pdfjs/pdf.min.js' %}"></script>
 
     <!-- Global Helper JS for File Explorer & Preview Modal -->
     <script>
@@ -743,6 +747,11 @@
             return name.toLowerCase().match(/\.(xls|xlsx|csv)$/i);
         }
 
+        function is360Video(name) {
+            if (!name) return false;
+            return isVideo(name) && Boolean(name.toLowerCase().match(/(360|360vr|vr360|_vr|\bvr\b|equirectangular|panoramic|spherical|panorama|360video)/i));
+        }
+
         function getFileIcon(name) {
             if (!name) return "bi-file-earmark-fill text-secondary";
             name = name.toLowerCase();
@@ -754,6 +763,7 @@
             if (isPpt(name)) return "bi-file-ppt-fill text-warning";
             if (name.match(/\.(zip|rar|7z|tar|gz)$/)) return "bi-file-zip-fill text-warning";
             if (isTextFile(name)) return "bi-file-text-fill text-secondary";
+            if (is360Video(name)) return "bi-badge-vr-fill text-warning";
             if (isVideo(name)) return "bi-file-play-fill text-info";
             if (isAudio(name)) return "bi-file-music-fill text-info";
 
@@ -1005,7 +1015,7 @@
         }
 
         if (window.pdfjsLib) {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            pdfjsLib.GlobalWorkerOptions.workerSrc = "{% static 'vendor/pdfjs/pdf.worker.min.js' %}";
         }
 
         function renderPdfDocument(url, cleanName, $container, $spinner, ext, slideLinks) {
@@ -2152,19 +2162,35 @@
                         showPreviewErrorCard("Unable to Render Spreadsheet", "Could not load spreadsheet data for preview.", cleanName, url, ext);
                     });
             } else if (isVideo(cleanName)) {
+                if (window.active360Player && typeof window.active360Player.destroy === 'function') {
+                    window.active360Player.destroy();
+                    window.active360Player = null;
+                }
                 $content.html(`
-                    <div class="d-flex align-items-center justify-content-center bg-black rounded-4 overflow-hidden shadow-sm w-100 position-relative" style="height: 65vh; min-height: 380px; max-height: 68vh;">
-                        <video controls autoplay preload="metadata" style="width: 100%; height: 100%; object-fit: contain; border-radius: 8px; outline: none;">
-                            <source src="${url}">
-                            Your browser does not support video playback.
-                        </video>
-                    </div>
+                    <div id="modalVideoPlayerContainer" class="w-100" style="height: 65vh; min-height: 400px; max-height: 68vh;"></div>
                 `);
-                let handleVideoErr = function() {
-                    showPreviewErrorCard("Unable to Play Video Preview", "The video file could not be loaded or played. The file might be corrupted, missing from server storage, or uses an unsupported video format.", cleanName, url, ext);
-                };
-                $content.find("video").on("error", handleVideoErr);
-                $content.find("source").on("error", handleVideoErr);
+                let targetContainer = document.getElementById('modalVideoPlayerContainer');
+                if (window.init360VideoPlayer) {
+                    window.active360Player = window.init360VideoPlayer(targetContainer, url, {
+                        title: cleanName,
+                        is360Default: is360Video(cleanName),
+                        autoPlay: true
+                    });
+                } else {
+                    $content.html(`
+                        <div class="d-flex align-items-center justify-content-center bg-black rounded-4 overflow-hidden shadow-sm w-100 position-relative" style="height: 65vh; min-height: 380px; max-height: 68vh;">
+                            <video controls autoplay preload="metadata" style="width: 100%; height: 100%; object-fit: contain; border-radius: 8px; outline: none;">
+                                <source src="${url}">
+                                Your browser does not support video playback.
+                            </video>
+                        </div>
+                    `);
+                    let handleVideoErr = function() {
+                        showPreviewErrorCard("Unable to Play Video Preview", "The video file could not be loaded or played. The file might be corrupted, missing from server storage, or uses an unsupported video format.", cleanName, url, ext);
+                    };
+                    $content.find("video").on("error", handleVideoErr);
+                    $content.find("source").on("error", handleVideoErr);
+                }
             } else if (isAudio(cleanName)) {
                 $content.html(`
                     <div class="text-center p-4 p-md-5 bg-light rounded-4 w-100 my-2 border shadow-sm" style="max-width: 600px;">
@@ -2228,6 +2254,14 @@
 
             $("#filePreviewModal").modal("show");
         }
+
+        $('#filePreviewModal').on('hidden.bs.modal', function () {
+            if (window.active360Player && typeof window.active360Player.destroy === 'function') {
+                window.active360Player.destroy();
+                window.active360Player = null;
+            }
+            $("#filePreviewContent").html("");
+        });
 
         let selectedFilesArray = [];
 

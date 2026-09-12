@@ -788,6 +788,11 @@
         return name.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/);
     }
 
+    function is360VideoName(name) {
+        if (!name) return false;
+        return Boolean(name.toLowerCase().match(/(360|360vr|vr360|_vr|\bvr\b|equirectangular|panoramic|spherical|panorama|360video)/i)) && Boolean(name.toLowerCase().match(/\.(mp4|avi|mov|mkv|webm|m4v)$/i));
+    }
+
     function getFileIcon(name) {
         name = name.toLowerCase();
 
@@ -797,8 +802,9 @@
         if (name.match(/\.(ppt|pptx)$/)) return "bi-file-ppt-fill text-warning";
         if (name.match(/\.(zip|rar|7z)$/)) return "bi-file-zip-fill text-warning";
         if (name.match(/\.(txt)$/)) return "bi-file-text-fill text-secondary";
-        if (name.match(/\.(mp4|avi|mov|mkv)$/)) return "bi-file-play-fill text-info";
-        if (name.match(/\.(mp3|wav)$/)) return "bi-file-music-fill text-info";
+        if (is360VideoName(name)) return "bi-badge-vr-fill text-warning";
+        if (name.match(/\.(mp4|avi|mov|mkv|webm|m4v)$/)) return "bi-file-play-fill text-info";
+        if (name.match(/\.(mp3|wav|ogg|m4a|flac)$/)) return "bi-file-music-fill text-info";
 
         return "bi-file-earmark-fill text-secondary";
     }
@@ -809,8 +815,17 @@
         let url = $(this).data("url");
         let container = $(this).find(".preview-container");
 
+        // 360 VIDEO
+        if (is360VideoName(name)) {
+            container.html(
+                `<div class="position-relative d-inline-block">
+                    <i class="bi bi-badge-vr-fill text-warning" style="font-size: 75px;"></i>
+                    <span class="position-absolute bottom-0 start-50 translate-middle-x badge badge-360-video extra-small px-2 py-0">360°</span>
+                </div>`
+            );
+        }
         // IMAGE THUMBNAIL
-        if (isImage(name)) {
+        else if (isImage(name)) {
             container.html(
                 `<img src="${url}" class="file-thumb">`
             );
@@ -833,13 +848,22 @@
 
         // Set type text
         let ext = name.split('.').pop().toUpperCase();
-        if (ext) {
+        if (is360VideoName(name)) {
+            typeLabel.html('<span class="badge badge-360-video"><i class="bi bi-badge-vr-fill me-1"></i>360° Video</span>');
+            row.attr("data-type", "360° Video");
+        } else if (ext) {
             typeLabel.text(ext + " File");
             row.attr("data-type", ext + " File"); // set for sorting
         }
 
+        // 360 VIDEO
+        if (is360VideoName(name)) {
+            $(this).html(
+                `<i class="bi bi-badge-vr-fill text-warning fs-4"></i>`
+            );
+        }
         // IMAGE THUMBNAIL
-        if (isImage(name)) {
+        else if (isImage(name)) {
             $(this).html(
                 `<img src="${url}" class="table-thumb-3d">`
             );
