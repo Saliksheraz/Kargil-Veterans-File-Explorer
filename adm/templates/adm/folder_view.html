@@ -793,6 +793,11 @@
         return Boolean(name.toLowerCase().match(/(360|360vr|vr360|_vr|\bvr\b|equirectangular|panoramic|spherical|panorama|360video)/i)) && Boolean(name.toLowerCase().match(/\.(mp4|avi|mov|mkv|webm|m4v)$/i));
     }
 
+    function is360ImageName(name) {
+        if (!name) return false;
+        return Boolean(name.toLowerCase().match(/(360|360photo|360image|vr360|360vr|_vr|\bvr\b|equirectangular|panoramic|spherical|panorama|photosphere|pano)/i)) && Boolean(name.toLowerCase().match(/\.(jpg|jpeg|png|webp|bmp)$/i));
+    }
+
     function getFileIcon(name) {
         name = name.toLowerCase();
 
@@ -803,6 +808,7 @@
         if (name.match(/\.(zip|rar|7z)$/)) return "bi-file-zip-fill text-warning";
         if (name.match(/\.(txt)$/)) return "bi-file-text-fill text-secondary";
         if (is360VideoName(name)) return "bi-badge-vr-fill text-warning";
+        if (is360ImageName(name)) return "bi-badge-vr-fill text-warning";
         if (name.match(/\.(mp4|avi|mov|mkv|webm|m4v)$/)) return "bi-file-play-fill text-info";
         if (name.match(/\.(mp3|wav|ogg|m4a|flac)$/)) return "bi-file-music-fill text-info";
 
@@ -821,6 +827,15 @@
                 `<div class="position-relative d-inline-block">
                     <i class="bi bi-badge-vr-fill text-warning" style="font-size: 75px;"></i>
                     <span class="position-absolute bottom-0 start-50 translate-middle-x badge badge-360-video extra-small px-2 py-0">360°</span>
+                </div>`
+            );
+        }
+        // 360 PHOTO
+        else if (is360ImageName(name)) {
+            container.html(
+                `<div class="position-relative d-inline-block">
+                    <img src="${url}" class="file-thumb">
+                    <span class="position-absolute bottom-0 start-50 translate-middle-x badge badge-360-photo extra-small px-2 py-0" style="bottom: 4px !important;">360° Photo</span>
                 </div>`
             );
         }
@@ -851,6 +866,9 @@
         if (is360VideoName(name)) {
             typeLabel.html('<span class="badge badge-360-video"><i class="bi bi-badge-vr-fill me-1"></i>360° Video</span>');
             row.attr("data-type", "360° Video");
+        } else if (is360ImageName(name)) {
+            typeLabel.html('<span class="badge badge-360-photo"><i class="bi bi-badge-vr-fill me-1"></i>360° Photo</span>');
+            row.attr("data-type", "360° Photo");
         } else if (ext) {
             typeLabel.text(ext + " File");
             row.attr("data-type", ext + " File"); // set for sorting
@@ -860,6 +878,15 @@
         if (is360VideoName(name)) {
             $(this).html(
                 `<i class="bi bi-badge-vr-fill text-warning fs-4"></i>`
+            );
+        }
+        // 360 PHOTO
+        else if (is360ImageName(name)) {
+            $(this).html(
+                `<div class="position-relative d-inline-block">
+                    <img src="${url}" class="table-thumb-3d">
+                    <span class="position-absolute bottom-0 start-50 translate-middle-x badge badge-360-photo" style="font-size: 8px; padding: 1px 3px; transform: translate(-50%, 30%);">360°</span>
+                </div>`
             );
         }
         // IMAGE THUMBNAIL

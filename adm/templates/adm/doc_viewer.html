@@ -13,6 +13,7 @@
     <link href="{% static 'vendor/bootstrap/css/bootstrap.min.css' %}" rel="stylesheet">
     <link href="{% static 'vendor/bootstrap-icons/bootstrap-icons.css' %}" rel="stylesheet">
     <link href="{% static 'css/video360_player.css' %}" rel="stylesheet">
+    <link href="{% static 'css/image360_viewer.css' %}" rel="stylesheet">
     
     <style>
         :root {
@@ -275,6 +276,7 @@
     <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
     <script src="{% static 'vendor/three/three.min.js' %}"></script>
     <script src="{% static 'js/video360_player.js' %}"></script>
+    <script src="{% static 'js/image360_viewer.js' %}"></script>
     <script src="{% static 'vendor/mammoth/mammoth.browser.min.js' %}"></script>
     <script src="{% static 'vendor/xlsx/xlsx.full.min.js' %}"></script>
     <script src="{% static 'vendor/jszip/jszip.min.js' %}"></script>
@@ -1743,11 +1745,26 @@
                 renderPdfDocument(fileUrl, cleanName, $container, $spinner, ext);
             } else if (isImage(cleanName)) {
                 $spinner.hide();
+                if (window.active360ImageViewer && typeof window.active360ImageViewer.destroy === 'function') {
+                    window.active360ImageViewer.destroy();
+                    window.active360ImageViewer = null;
+                }
                 $container.html(`
-                    <div class="text-center py-3">
-                        <img src="${fileUrl}" class="img-fluid rounded-4 shadow-sm" style="max-height: 82vh; object-fit: contain;">
-                    </div>
+                    <div id="docViewerImageContainer" class="w-100 mx-auto" style="height: 84vh; min-height: 450px; max-width: 1200px;"></div>
                 `).show();
+                let targetContainer = document.getElementById('docViewerImageContainer');
+                if (window.init360ImageViewer) {
+                    window.active360ImageViewer = window.init360ImageViewer(targetContainer, fileUrl, {
+                        title: cleanName,
+                        is360Default: is360Image(cleanName)
+                    });
+                } else {
+                    $container.html(`
+                        <div class="text-center py-3">
+                            <img src="${fileUrl}" class="img-fluid rounded-4 shadow-sm" style="max-height: 82vh; object-fit: contain;">
+                        </div>
+                    `).show();
+                }
             } else if (isVideo(cleanName)) {
                 $spinner.hide();
                 if (window.active360Viewer && typeof window.active360Viewer.destroy === 'function') {

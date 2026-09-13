@@ -20,6 +20,9 @@
     <!-- Local 360 Degree Video Player CSS -->
     <link href="{% static 'css/video360_player.css' %}" rel="stylesheet">
 
+    <!-- Local 360 Degree Image (Panorama) Viewer CSS -->
+    <link href="{% static 'css/image360_viewer.css' %}" rel="stylesheet">
+
     <style>
         :root {
             --primary-gold: #d4af37;
@@ -696,6 +699,9 @@
     <!-- Local 360 Degree Video Player Engine -->
     <script src="{% static 'js/video360_player.js' %}"></script>
 
+    <!-- Local 360 Degree Image (Panorama) Viewer Engine -->
+    <script src="{% static 'js/image360_viewer.js' %}"></script>
+
     <!-- Local Mammoth.js for Word (.docx) Rendering -->
     <script src="{% static 'vendor/mammoth/mammoth.browser.min.js' %}"></script>
     <!-- Local SheetJS for Excel (.xlsx/.xls/.csv) Rendering -->
@@ -752,10 +758,16 @@
             return isVideo(name) && Boolean(name.toLowerCase().match(/(360|360vr|vr360|_vr|\bvr\b|equirectangular|panoramic|spherical|panorama|360video)/i));
         }
 
+        function is360Image(name) {
+            if (!name) return false;
+            return isImage(name) && Boolean(name.toLowerCase().match(/(360|360photo|360image|vr360|360vr|_vr|\bvr\b|equirectangular|panoramic|spherical|panorama|photosphere|pano)/i));
+        }
+
         function getFileIcon(name) {
             if (!name) return "bi-file-earmark-fill text-secondary";
             name = name.toLowerCase();
 
+            if (is360Image(name)) return "bi-badge-vr-fill text-warning";
             if (isImage(name)) return "bi-file-image-fill text-primary";
             if (isPdf(name)) return "bi-file-pdf-fill text-danger";
             if (isWordDoc(name)) return "bi-file-word-fill text-primary";
@@ -2036,17 +2048,32 @@
             $spinner.hide();
 
             if (isImage(cleanName)) {
+                if (window.active360ImageViewer && typeof window.active360ImageViewer.destroy === 'function') {
+                    window.active360ImageViewer.destroy();
+                    window.active360ImageViewer = null;
+                }
                 $content.html(`
-                    <div class="d-flex align-items-center justify-content-center p-2 w-100" style="height: 65vh; min-height: 350px;">
-                        <img src="${url}" class="img-fluid rounded-3 shadow-sm preview-image-zoom" alt="${cleanName}" style="max-height: 65vh; max-width: 100%; object-fit: contain; cursor: zoom-in;" title="Click to view full image in new tab">
-                    </div>
+                    <div id="modalImageViewerContainer" class="w-100" style="height: 65vh; min-height: 400px; max-height: 68vh;"></div>
                 `);
-                $content.find("img").on("click", function() {
-                    window.open(url, "_blank");
-                });
-                $content.find("img").on("error", function() {
-                    showPreviewErrorCard("Unable to Load Image Preview", "The image file could not be loaded. It may be corrupted, missing from server storage, or in an unsupported image format.", cleanName, url, ext);
-                });
+                let targetContainer = document.getElementById('modalImageViewerContainer');
+                if (window.init360ImageViewer) {
+                    window.active360ImageViewer = window.init360ImageViewer(targetContainer, url, {
+                        title: cleanName,
+                        is360Default: is360Image(cleanName)
+                    });
+                } else {
+                    $content.html(`
+                        <div class="d-flex align-items-center justify-content-center p-2 w-100" style="height: 65vh; min-height: 350px;">
+                            <img src="${url}" class="img-fluid rounded-3 shadow-sm preview-image-zoom" alt="${cleanName}" style="max-height: 65vh; max-width: 100%; object-fit: contain; cursor: zoom-in;" title="Click to view full image in new tab">
+                        </div>
+                    `);
+                    $content.find("img").on("click", function() {
+                        window.open(url, "_blank");
+                    });
+                    $content.find("img").on("error", function() {
+                        showPreviewErrorCard("Unable to Load Image Preview", "The image file could not be loaded. It may be corrupted, missing from server storage, or in an unsupported image format.", cleanName, url, ext);
+                    });
+                }
             } else if (isPdf(cleanName)) {
                 renderPdfDocument(url, cleanName, $content, $spinner, ext);
             } else if (isWordDoc(cleanName)) {
@@ -2259,6 +2286,10 @@
             if (window.active360Player && typeof window.active360Player.destroy === 'function') {
                 window.active360Player.destroy();
                 window.active360Player = null;
+            }
+            if (window.active360ImageViewer && typeof window.active360ImageViewer.destroy === 'function') {
+                window.active360ImageViewer.destroy();
+                window.active360ImageViewer = null;
             }
             $("#filePreviewContent").html("");
         });

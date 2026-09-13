@@ -40,8 +40,18 @@ class LocalAssetsAnd360VideoTest(TestCase):
         self.assertGreater(os.path.getsize(js_path), 0)
         self.assertGreater(os.path.getsize(css_path), 0)
 
+    def test_image360_viewer_assets_exist(self):
+        """Ensure 360 image viewer JS and CSS exist in static/."""
+        js_path = os.path.join(settings.BASE_DIR, 'static', 'js', 'image360_viewer.js')
+        css_path = os.path.join(settings.BASE_DIR, 'static', 'css', 'image360_viewer.css')
+
+        self.assertTrue(os.path.exists(js_path), "Missing static/js/image360_viewer.js")
+        self.assertTrue(os.path.exists(css_path), "Missing static/css/image360_viewer.css")
+        self.assertGreater(os.path.getsize(js_path), 0)
+        self.assertGreater(os.path.getsize(css_path), 0)
+
     def test_doc_viewer_loads_360_player_and_local_assets(self):
-        """Verify doc_viewer renders 360 video container and local static links."""
+        """Verify doc_viewer renders 360 video and image containers and local static links."""
         self.client.login(username='testuser', password='password123')
         response = self.client.get('/view-doc/', {'url': '/media/files/kargil_memorial_360.mp4', 'name': 'kargil_memorial_360.mp4'})
         self.assertEqual(response.status_code, 200)
@@ -51,8 +61,11 @@ class LocalAssetsAnd360VideoTest(TestCase):
         self.assertIn('/static/vendor/three/three.min.js', content)
         self.assertIn('/static/js/video360_player.js', content)
         self.assertIn('/static/css/video360_player.css', content)
+        self.assertIn('/static/js/image360_viewer.js', content)
+        self.assertIn('/static/css/image360_viewer.css', content)
         self.assertIn('/static/vendor/bootstrap/css/bootstrap.min.css', content)
         self.assertIn('docViewerVideoContainer', content)
+        self.assertIn('docViewerImageContainer', content)
 
         # Ensure NO external CDN references exist
         self.assertNotIn('https://cdn.jsdelivr.net', content)
@@ -60,7 +73,7 @@ class LocalAssetsAnd360VideoTest(TestCase):
         self.assertNotIn('https://code.jquery.com', content)
 
     def test_base_template_loads_360_and_local_assets(self):
-        """Verify index dashboard renders local static files and 360 video components."""
+        """Verify index dashboard renders local static files and 360 video/image components."""
         self.client.login(username='testuser', password='password123')
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
@@ -69,7 +82,12 @@ class LocalAssetsAnd360VideoTest(TestCase):
         self.assertIn('/static/vendor/three/three.min.js', content)
         self.assertIn('/static/js/video360_player.js', content)
         self.assertIn('/static/css/video360_player.css', content)
+        self.assertIn('/static/js/image360_viewer.js', content)
+        self.assertIn('/static/css/image360_viewer.css', content)
         self.assertIn('modalVideoPlayerContainer', content)
+        self.assertIn('modalImageViewerContainer', content)
+        self.assertIn('is360ImageName', content)
+        self.assertIn('badge-360-photo', content)
 
         # Ensure NO external CDN references exist
         self.assertNotIn('https://cdn.jsdelivr.net', content)
@@ -77,12 +95,14 @@ class LocalAssetsAnd360VideoTest(TestCase):
         self.assertNotIn('https://code.jquery.com', content)
 
     def test_folder_view_renders_360_support(self):
-        """Verify folder_view renders 360 video badge logic and local assets."""
+        """Verify folder_view renders 360 video and image badge logic and local assets."""
         self.client.login(username='testuser', password='password123')
         response = self.client.get(f'/folder/{self.folder.id}/')
         self.assertEqual(response.status_code, 200)
 
         content = response.content.decode('utf-8')
         self.assertIn('is360VideoName', content)
+        self.assertIn('is360ImageName', content)
         self.assertIn('badge-360-video', content)
+        self.assertIn('badge-360-photo', content)
         self.assertNotIn('https://cdn.jsdelivr.net', content)

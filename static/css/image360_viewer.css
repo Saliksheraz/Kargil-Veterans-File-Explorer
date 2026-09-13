@@ -1,0 +1,303 @@
+/* 360 Degree Image (Panorama) Viewer Styles - Kargil Veterans File Explorer */
+
+:root {
+    --i360-primary: #d4af37;
+    --i360-primary-hover: #b8972e;
+    --i360-bg: #0d1310;
+    --i360-surface: rgba(20, 32, 25, 0.85);
+    --i360-border: rgba(212, 175, 55, 0.25);
+    --i360-text: #ffffff;
+    --i360-text-muted: rgba(255, 255, 255, 0.65);
+}
+
+.image360-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
+    background-color: var(--i360-bg);
+    border-radius: 12px;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    outline: none;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.image360-wrapper:fullscreen,
+.image360-wrapper:-webkit-full-screen {
+    width: 100vw !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    max-height: 100vh !important;
+}
+
+/* Three.js Canvas Container */
+.image360-canvas-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+    touch-action: none;
+    z-index: 1;
+}
+
+.image360-canvas-container:active {
+    cursor: grabbing;
+}
+
+.image360-canvas-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+}
+
+/* Flat 2D Image Container (When in flat mode) */
+.image360-flat-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #000000;
+    z-index: 1;
+    overflow: hidden;
+}
+
+.image360-flat-container img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+    transition: transform 0.2s ease;
+}
+
+/* Top Badge & Compass Overlay */
+.image360-top-bar {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    right: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 10;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.image360-badge-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    pointer-events: auto;
+}
+
+.image360-badge {
+    background: var(--i360-surface);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--i360-border);
+    color: var(--i360-primary);
+    padding: 6px 12px;
+    border-radius: 30px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    letter-spacing: 0.3px;
+}
+
+.image360-compass-btn {
+    background: var(--i360-surface);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--i360-border);
+    color: var(--i360-text);
+    padding: 6px 12px;
+    border-radius: 30px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.image360-compass-btn:hover {
+    background: rgba(212, 175, 55, 0.2);
+    color: var(--i360-primary);
+    border-color: var(--i360-primary);
+}
+
+.image360-compass-icon {
+    display: inline-block;
+    transition: transform 0.1s linear;
+}
+
+/* Interactive Hint Badge */
+.image360-hint-overlay {
+    position: absolute;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    padding: 8px 18px;
+    border-radius: 30px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    pointer-events: none;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    animation: i360FadeIn 0.4s ease;
+    transition: opacity 0.5s ease;
+}
+
+@keyframes i360FadeIn {
+    from { opacity: 0; transform: translate(-50%, -10px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Loading Spinner Overlay */
+.image360-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    z-index: 20;
+    color: var(--i360-primary);
+    font-weight: 600;
+    font-size: 0.9rem;
+    pointer-events: none;
+}
+
+/* Bottom Controls Toolbar */
+.image360-controls-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 14px 18px 12px 18px;
+    background: linear-gradient(to top, rgba(13, 19, 16, 0.95) 0%, rgba(13, 19, 16, 0.7) 70%, transparent 100%);
+    z-index: 15;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.image360-controls-hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(10px);
+}
+
+.image360-buttons-left,
+.image360-buttons-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.image360-btn {
+    background: transparent;
+    border: none;
+    color: var(--i360-text);
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    pointer-events: auto;
+}
+
+.image360-btn:hover {
+    color: var(--i360-primary);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.image360-btn.active {
+    color: var(--i360-primary);
+    background: rgba(212, 175, 55, 0.2);
+    border: 1px solid var(--i360-border);
+}
+
+/* Mode Switcher Pill (360 vs Flat) */
+.image360-mode-toggle {
+    display: inline-flex;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    padding: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    pointer-events: auto;
+}
+
+.image360-mode-btn {
+    border: none;
+    background: transparent;
+    color: var(--i360-text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.image360-mode-btn.active {
+    background: var(--i360-primary);
+    color: #121e18;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+
+/* Auto-Rotate Spin Animation */
+@keyframes i360Spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.image360-spinning {
+    animation: i360Spin 4s linear infinite;
+    color: var(--i360-primary) !important;
+}
+
+/* 360 Photo Badge for Explorer Cards */
+.badge-360-photo {
+    background: linear-gradient(135deg, #1b3022 0%, #2a4d36 100%) !important;
+    color: #d4af37 !important;
+    border: 1px solid rgba(212, 175, 55, 0.4) !important;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
