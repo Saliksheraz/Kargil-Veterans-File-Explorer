@@ -239,6 +239,23 @@
             transform: scale(1.02);
             z-index: 30;
         }
+
+        .pptx-video-container {
+            position: absolute;
+            pointer-events: auto;
+            z-index: 25;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .pptx-video-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000000;
+            border-radius: 4px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
     </style>
 </head>
 <body>
@@ -409,7 +426,7 @@
             pdfjsLib.GlobalWorkerOptions.workerSrc = "{% static 'vendor/pdfjs/pdf.worker.min.js' %}";
         }
 
-        function renderPdfDocument(url, cleanName, $container, $spinner, ext, slideLinks) {
+        function renderPdfDocument(url, cleanName, $container, $spinner, ext, slideLinks, slideVideos) {
             $spinner.show();
             if (!window.pdfjsLib) {
                 renderPdfFallback(url, cleanName, $container, $spinner, ext);
@@ -481,6 +498,12 @@
                 function renderPage(pageNum) {
                     if (pageNum < 1 || pageNum > totalPages || isRendering) return;
                     isRendering = true;
+
+                    // Pause any videos currently playing on active slide
+                    $container.find("video").each(function() {
+                        try { this.pause(); } catch(e) {}
+                    });
+
                     currentPage = pageNum;
                     $container.find(".pdf-page-input").val(currentPage);
                     $container.find(".pdf-prev-page").prop("disabled", currentPage === 1);
@@ -505,7 +528,7 @@
                         canvas.style.width = viewport.width + "px";
                         canvas.style.height = viewport.height + "px";
 
-                        // Render interactive hyperlink hotspots if present
+                        // Render interactive hyperlink hotspots and video players if present
                         if (overlay) {
                             overlay.innerHTML = "";
                             let curLinks = (slideLinks && (slideLinks[currentPage] || slideLinks[String(currentPage)])) || [];
@@ -533,6 +556,25 @@
                                     };
                                 }
                                 overlay.appendChild(hotspot);
+                            });
+
+                            // Render interactive video players on slide
+                            let curVideos = (slideVideos && (slideVideos[currentPage] || slideVideos[String(currentPage)])) || [];
+                            curVideos.forEach(function(vid) {
+                                let videoBox = document.createElement("div");
+                                videoBox.className = "pptx-video-container";
+                                videoBox.style.left = vid.left_pct + "%";
+                                videoBox.style.top = vid.top_pct + "%";
+                                videoBox.style.width = vid.width_pct + "%";
+                                videoBox.style.height = vid.height_pct + "%";
+                                videoBox.innerHTML = `
+                                    <div class="position-relative w-100 h-100 rounded-2 overflow-hidden shadow-sm" style="background: #000; border: 1.5px solid rgba(212,175,55,0.6);">
+                                        <video controls playsinline preload="metadata" style="width: 100%; height: 100%; object-fit: contain; background: #000;" src="${vid.url}">
+                                            Your browser does not support HTML5 video playback.
+                                        </video>
+                                    </div>
+                                `;
+                                overlay.appendChild(videoBox);
                             });
                         }
 
@@ -1590,7 +1632,7 @@
                     success: function(resp) {
                         if (resp && resp.success && resp.pdf_url) {
                             $spinner.hide();
-                            renderPdfDocument(resp.pdf_url, cleanName, $container, $spinner, 'PDF', resp.links || null);
+                            renderPdfDocument(resp.pdf_url, cleanName, $container, $spinner, 'PDF', resp.links || null, resp.videos || null);
                         } else {
                             throw new Error(resp.error || "Server PDF conversion failed");
                         }

@@ -379,6 +379,86 @@
     color: white;
     transform: scale(1.1);
 }
+
+/* Drag and Drop Arrange Mode Styles */
+.arrange-mode-active .grid-item-col,
+.arrange-mode-active .folder-card,
+.arrange-mode-active .item-card,
+.arrange-mode-active tbody tr {
+    cursor: grab !important;
+}
+.arrange-mode-active .grid-item-col:active,
+.arrange-mode-active .folder-card:active,
+.arrange-mode-active .item-card:active,
+.arrange-mode-active tbody tr:active {
+    cursor: grabbing !important;
+}
+.grid-item-col.dragging,
+tr.dragging {
+    opacity: 0.35 !important;
+    transform: scale(0.96);
+    outline: 2.5px dashed var(--primary-gold) !important;
+    border-radius: 12px;
+}
+.grid-item-col.drag-over-active,
+tr.drag-over-active {
+    outline: 2.5px solid var(--primary-gold) !important;
+    background: rgba(212, 175, 55, 0.12) !important;
+    border-radius: 12px;
+}
+.arrange-mode-badge {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    background: rgba(18, 45, 31, 0.9);
+    color: var(--primary-gold);
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 12px;
+    display: none;
+    z-index: 15;
+    pointer-events: none;
+    border: 1px solid var(--primary-gold);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.25);
+}
+.arrange-mode-active .arrange-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.arrange-banner {
+    background: linear-gradient(90deg, rgba(18,45,31,0.95), rgba(27,63,44,0.95));
+    color: #ffffff;
+    border: 1.5px solid var(--primary-gold);
+    border-radius: 14px;
+    padding: 10px 20px;
+    margin-bottom: 20px;
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+}
+.arrange-banner.show {
+    display: flex;
+}
+.reorder-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--army-green);
+    color: #ffffff;
+    border: 1.5px solid var(--primary-gold);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    border-radius: 30px;
+    padding: 10px 22px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    z-index: 99999;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
 {% endblock %}
 
 {% block content %}
@@ -408,10 +488,12 @@
                 <li><a class="dropdown-item sort-option" href="#" data-sort="size" data-dir="asc"><i class="bi bi-sort-numeric-down me-2 text-success"></i> Size (Smallest First)</a></li>
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item sort-option" href="#" data-sort="type" data-dir="asc"><i class="bi bi-folder-fill me-2 text-warning"></i> Type (Folders First)</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item sort-option" href="#" data-sort="order" data-dir="asc"><i class="bi bi-arrows-move me-2 text-warning"></i> Custom (Drag &amp; Drop)</a></li>
             </ul>
         </div>
 
-        <div class="view-toggle-group me-2">
+        <div class="view-toggle-group me-1">
             <button class="view-toggle-btn active" id="btn-grid-view" title="Grid View">
                 <i class="bi bi-grid-fill"></i>
                 <span class="d-none d-sm-inline">Grid</span>
@@ -421,6 +503,11 @@
                 <span class="d-none d-sm-inline">Details</span>
             </button>
         </div>
+
+        <!-- Arrange Mode Toggle Button -->
+        <button class="btn btn-outline-secondary btn-sm rounded-pill px-3 me-1" id="btn-arrange-mode" title="Toggle Drag & Drop to arrange files and folders">
+            <i class="bi bi-arrows-move me-1"></i> <span id="arrangeModeLabel">Arrange</span>
+        </button>
         {% endif %}
         <button class="btn btn-outline-success btn-sm rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#createFolderModal">
             <i class="bi bi-folder-plus me-1"></i> New Folder
@@ -432,6 +519,23 @@
             {{ folders|length }} Folder{{ folders|pluralize }} &bull; {{ files|length }} File{{ files|pluralize }}
         </span>
     </div>
+</div>
+
+<!-- Arrange Mode Banner -->
+<div id="arrangeBanner" class="arrange-banner">
+    <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-arrows-move text-warning fs-5"></i>
+        <span><strong>Arrange Mode Active:</strong> Click and drag any folder or file to rearrange its position in the list.</span>
+    </div>
+    <button type="button" class="btn btn-gold-action btn-sm rounded-pill px-3 py-1" id="btn-done-arrange">
+        <i class="bi bi-check-lg me-1"></i> Done Arranging
+    </button>
+</div>
+
+<!-- Floating Reorder Toast Indicator -->
+<div id="reorderToast" class="reorder-toast">
+    <i class="bi bi-check-circle-fill text-warning fs-5"></i>
+    <span id="reorderToastMsg">Arrangement saved</span>
 </div>
 
 <!-- Empty State -->
@@ -452,21 +556,22 @@
     <div class="row g-4">
         <!-- FOLDERS -->
         {% for folder in folders %}
-        <div class="col-6 col-sm-4 col-md-3 col-lg-2 grid-item-col" data-sort-name="{{ folder.name|lower }}" data-sort-type="folder" data-sort-size="{{ folder.total_size }}" data-sort-files="{{ folder.file_count }}" data-sort-created="{{ folder.created_at|date:'U'|default:'0' }}">
+        <div class="col-6 col-sm-4 col-md-3 col-lg-2 grid-item-col" data-item-type="folder" data-item-id="{{ folder.id }}" data-order="{{ folder.order }}" data-sort-order="{{ folder.order }}" data-sort-name="{{ folder.name|lower }}" data-sort-type="folder" data-sort-size="{{ folder.total_size }}" data-sort-files="{{ folder.file_count }}" data-sort-created="{{ folder.created_at|date:'U'|default:'0' }}">
             <div class="folder-card card-transition" data-name="{{ folder.name }}" data-id="{{ folder.id }}" data-files-json="{{ folder.all_files_json }}" data-tree-json="{{ folder.folder_tree_json }}">
+                <div class="arrange-mode-badge"><i class="bi bi-grip-vertical"></i> Move</div>
                 <form method="post" action="{% url 'delete_folder' folder.id %}" class="d-inline">
                     {% csrf_token %}
                     <button type="submit" class="delete-btn" onclick="return confirmDelete(event, 'folder');" title="Delete Folder">
                         <i class="bi bi-trash-fill"></i>
                     </button>
                 </form>
-                <button type="button" class="edit-btn" onclick="openEditModal(event, '{{ folder.id }}', '{{ folder.name|escapejs }}')" title="Edit Folder">
+                <button type="button" class="edit-btn" onclick="openEditModal(event, '{{ folder.id }}', '{{ folder.name|escapejs }}', '{% if folder.thumbnail %}{{ folder.thumbnail.url }}?t={{ folder.created_at|date:'U' }}{% endif %}')" title="Edit Folder">
                     <i class="bi bi-pencil-fill"></i>
                 </button>
                 <div class="folder-icon">
                     {% if folder.thumbnail %}
                         <div class="folder-thumb-container">
-                            <img src="{{ folder.thumbnail.url }}" class="folder-thumb-3d" alt="folder thumbnail">
+                            <img src="{{ folder.thumbnail.url }}?t={{ folder.created_at|date:'U' }}" class="folder-thumb-3d" alt="folder thumbnail">
                         </div>
                     {% else %}
                         <i class="bi bi-folder-fill folder-icon-3d"></i>
@@ -479,9 +584,10 @@
 
         <!-- FILES -->
         {% for file_inst in files %}
-        <div class="col-6 col-sm-4 col-md-3 col-lg-2 grid-item-col" data-sort-name="{{ file_inst.file.name|cut:'uploads/'|lower }}" data-sort-type="file" data-sort-size="{{ file_inst.file_size }}" data-sort-files="0" data-sort-created="{{ file_inst.created_at|date:'U'|default:'0' }}">
+        <div class="col-6 col-sm-4 col-md-3 col-lg-2 grid-item-col" data-item-type="file" data-item-id="{{ file_inst.id }}" data-order="{{ file_inst.order }}" data-sort-order="{{ file_inst.order }}" data-sort-name="{{ file_inst.file.name|cut:'uploads/'|lower }}" data-sort-type="file" data-sort-size="{{ file_inst.file_size }}" data-sort-files="0" data-sort-created="{{ file_inst.created_at|date:'U'|default:'0' }}">
             <div class="item-card file-card card-transition" data-url="{{ file_inst.file.url }}"
                 data-name="{{ file_inst.file.name }}" data-size="{{ file_inst.file_size_formatted }}">
+                <div class="arrange-mode-badge"><i class="bi bi-grip-vertical"></i> Move</div>
                 <form method="post" action="{% url 'delete_file' file_inst.id %}" class="d-inline">
                     {% csrf_token %}
                     <button type="submit" class="delete-btn" onclick="return confirmDelete(event, 'file');" title="Delete File">
@@ -519,12 +625,12 @@
             <tbody id="details-table-body">
                 <!-- FOLDERS -->
                 {% for folder in folders %}
-                <tr class="details-folder-row" data-id="{{ folder.id }}" data-name="{{ folder.name }}" data-type="Folder" data-size="{{ folder.total_size }}" data-files="{{ folder.file_count }}" data-created="{{ folder.created_at|date:'Y-m-d H:i:s' }}" data-files-json="{{ folder.all_files_json }}" data-tree-json="{{ folder.folder_tree_json }}" data-sort-name="{{ folder.name|lower }}" data-sort-type="folder" data-sort-size="{{ folder.total_size }}" data-sort-files="{{ folder.file_count }}" data-sort-created="{{ folder.created_at|date:'U'|default:'0' }}">
+                <tr class="details-folder-row" data-id="{{ folder.id }}" data-item-type="folder" data-item-id="{{ folder.id }}" data-order="{{ folder.order }}" data-sort-order="{{ folder.order }}" data-name="{{ folder.name }}" data-type="Folder" data-size="{{ folder.total_size }}" data-files="{{ folder.file_count }}" data-created="{{ folder.created_at|date:'Y-m-d H:i:s' }}" data-files-json="{{ folder.all_files_json }}" data-tree-json="{{ folder.folder_tree_json }}" data-sort-name="{{ folder.name|lower }}" data-sort-type="folder" data-sort-size="{{ folder.total_size }}" data-sort-files="{{ folder.file_count }}" data-sort-created="{{ folder.created_at|date:'U'|default:'0' }}">
                     <td class="text-start">
                         <div class="details-table-name-wrapper">
                             <div class="details-table-icon">
                                 {% if folder.thumbnail %}
-                                    <img src="{{ folder.thumbnail.url }}" class="table-thumb-3d" alt="folder thumbnail">
+                                    <img src="{{ folder.thumbnail.url }}?t={{ folder.created_at|date:'U' }}" class="table-thumb-3d" alt="folder thumbnail">
                                 {% else %}
                                     <i class="bi bi-folder-fill table-folder-icon"></i>
                                 {% endif %}
@@ -538,7 +644,7 @@
                     <td class="text-end text-muted small" data-order="{{ folder.created_at|date:'U' }}">{{ folder.created_at|date:"M d, Y h:i A"|default:"-" }}</td>
                     <td class="text-center" onclick="event.stopPropagation();">
                         <div class="details-table-actions">
-                            <button type="button" class="table-action-btn edit" onclick="openEditModal(event, '{{ folder.id }}', '{{ folder.name|escapejs }}')" title="Edit Folder">
+                            <button type="button" class="table-action-btn edit" onclick="openEditModal(event, '{{ folder.id }}', '{{ folder.name|escapejs }}', '{% if folder.thumbnail %}{{ folder.thumbnail.url }}?t={{ folder.created_at|date:'U' }}{% endif %}')" title="Edit Folder">
                                 <i class="bi bi-pencil-fill"></i>
                             </button>
                             <form method="post" action="{% url 'delete_folder' folder.id %}" class="d-inline">
@@ -554,7 +660,7 @@
 
                 <!-- FILES -->
                 {% for file_inst in files %}
-                <tr class="details-file-row" data-url="{{ file_inst.file.url }}" data-name="{{ file_inst.file.name|cut:'uploads/' }}" data-type="{{ file_inst.file.name|slice:'-4:'|lower }}" data-size="{{ file_inst.file_size }}" data-size-formatted="{{ file_inst.file_size_formatted }}" data-files="-1" data-created="{{ file_inst.created_at|date:'Y-m-d H:i:s' }}" data-sort-name="{{ file_inst.file.name|cut:'uploads/'|lower }}" data-sort-type="file" data-sort-size="{{ file_inst.file_size }}" data-sort-files="0" data-sort-created="{{ file_inst.created_at|date:'U'|default:'0' }}">
+                <tr class="details-file-row" data-url="{{ file_inst.file.url }}" data-item-type="file" data-item-id="{{ file_inst.id }}" data-order="{{ file_inst.order }}" data-sort-order="{{ file_inst.order }}" data-name="{{ file_inst.file.name|cut:'uploads/' }}" data-type="{{ file_inst.file.name|slice:'-4:'|lower }}" data-size="{{ file_inst.file_size }}" data-size-formatted="{{ file_inst.file_size_formatted }}" data-files="-1" data-created="{{ file_inst.created_at|date:'Y-m-d H:i:s' }}" data-sort-name="{{ file_inst.file.name|cut:'uploads/'|lower }}" data-sort-type="file" data-sort-size="{{ file_inst.file_size }}" data-sort-files="0" data-sort-created="{{ file_inst.created_at|date:'U'|default:'0' }}">
                     <td class="text-start">
                         <div class="details-table-name-wrapper">
                             <div class="details-table-icon table-file-preview-container" data-name="{{ file_inst.file.name }}" data-url="{{ file_inst.file.url }}">
@@ -578,7 +684,6 @@
                         </div>
                     </td>
                 </tr>
-                {% endfor %}
             </tbody>
         </table>
     </div>
@@ -637,6 +742,18 @@
                     <div class="mb-3">
                         <label for="editFolderImage" class="form-label font-weight-bold" style="font-weight: 600;">Update Folder Background / Image (Optional)</label>
                         <input class="form-control" type="file" id="editFolderImage" name="image" accept="image/*">
+                    </div>
+                    <div class="mb-3" id="editFolderCurrentThumbContainer" style="display: none;">
+                        <label class="form-label font-weight-bold" style="font-weight: 600;">Current Background / Thumbnail</label>
+                        <div class="d-flex align-items-center gap-3 p-2 border rounded-3 bg-light">
+                            <img id="editFolderThumbPreview" src="" alt="Thumbnail" style="width: 70px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid #ced4da;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="remove_image" value="true" id="removeFolderImageCheck">
+                                <label class="form-check-label text-danger small fw-semibold" for="removeFolderImageCheck">
+                                    <i class="bi bi-trash me-1"></i>Remove background image
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-top-0">
@@ -728,14 +845,21 @@
 <script>
     window.currentFolderId = "";
     window.currentFolderName = "Home";
+    let isArrangeActive = false;
+    let isItemDragging = false;
+    let draggedElement = null;
+    let dragSourceType = null;
+
     // Navigate to /folder/id/ (Grid View)
     $(document).on("click", ".folder-card", function () {
+        if (isArrangeActive || isItemDragging) return;
         let id = $(this).data("id");
         window.location.href = "/folder/" + id + "/";
     });
 
     // File open preview (Grid View)
     $(document).on("click", ".file-card", function () {
+        if (isArrangeActive || isItemDragging) return;
         let url = $(this).data("url");
         let name = $(this).data("name");
         let size = $(this).data("size") || "";
@@ -744,12 +868,14 @@
 
     // Navigate to /folder/id/ (Details View Row Click)
     $(document).on("click", ".details-folder-row", function () {
+        if (isArrangeActive || isItemDragging) return;
         let id = $(this).data("id");
         window.location.href = "/folder/" + id + "/";
     });
 
     // File open preview (Details View Row Click)
     $(document).on("click", ".details-file-row", function () {
+        if (isArrangeActive || isItemDragging) return;
         let url = $(this).data("url");
         let name = $(this).data("name");
         let size = $(this).data("size-formatted") || "";
@@ -761,10 +887,18 @@
         return confirm("Are you sure you want to delete this " + type + "?");
     }
 
-    function openEditModal(event, id, name) {
+    function openEditModal(event, id, name, thumbUrl) {
         event.stopPropagation();
         $("#editFolderName").val(name);
         $("#editFolderForm").attr("action", "/update-folder/" + id + "/");
+        $("#removeFolderImageCheck").prop("checked", false);
+        if (thumbUrl) {
+            $("#editFolderThumbPreview").attr("src", thumbUrl);
+            $("#editFolderCurrentThumbContainer").show();
+        } else {
+            $("#editFolderThumbPreview").attr("src", "");
+            $("#editFolderCurrentThumbContainer").hide();
+        }
         $("#editFolderModal").modal("show");
     }
 
@@ -918,57 +1052,245 @@
     let savedView = localStorage.getItem("preferred_view") || "grid";
     setView(savedView);
 
-    // Clientside Table Sorting
-    let currentSortCol = 'name';
-    let currentSortAsc = true;
+    // ==========================================
+    // ARRANGE MODE & DRAG-AND-DROP REORDERING
+    // ==========================================
+    function setArrangeMode(active) {
+        isArrangeActive = active;
+        if (active) {
+            $("body").addClass("arrange-mode-active");
+            $("#arrangeBanner").addClass("show");
+            $("#btn-arrange-mode").addClass("active btn-warning text-dark").removeClass("btn-outline-secondary");
+            $("#arrangeModeLabel").text("Exit Arrange");
+            $(".grid-item-col").attr("draggable", "true");
+            $("#details-table-body tr").attr("draggable", "true");
+            
+            // Set custom sort in dropdown if not already active
+            $(".sort-option").removeClass("active");
+            let $orderOpt = $('.sort-option[data-sort="order"]');
+            if ($orderOpt.length > 0) {
+                $orderOpt.addClass("active");
+                $("#currentSortLabel").text("Custom (Drag & Drop)");
+            }
+        } else {
+            $("body").removeClass("arrange-mode-active");
+            $("#arrangeBanner").removeClass("show");
+            $("#btn-arrange-mode").removeClass("active btn-warning text-dark").addClass("btn-outline-secondary");
+            $("#arrangeModeLabel").text("Arrange");
+            $(".grid-item-col").removeAttr("draggable");
+            $("#details-table-body tr").removeAttr("draggable");
+            $(".grid-item-col, #details-table-body tr").removeClass("dragging drag-over-active");
+        }
+    }
 
-    $(document).on("click", "th.sortable", function() {
-        let col = $(this).data("sort");
-        if (currentSortCol === col) {
-            currentSortAsc = !currentSortAsc;
-        } else {
-            currentSortCol = col;
-            currentSortAsc = true;
-        }
-        
-        // Update sorting indicators
-        $("th.sortable i").addClass("text-muted").removeClass("bi-arrow-up bi-arrow-down").addClass("bi-arrow-down-up");
-        let icon = $(this).find("i");
-        icon.removeClass("bi-arrow-down-up text-muted");
-        if (currentSortAsc) {
-            icon.addClass("bi-arrow-up");
-        } else {
-            icon.addClass("bi-arrow-down");
-        }
-        
-        sortTable(col, currentSortAsc);
+    $(document).on("click", "#btn-arrange-mode", function(e) {
+        e.preventDefault();
+        setArrangeMode(!isArrangeActive);
     });
 
-    function sortTable(column, asc) {
-        let tbody = $("#details-table-body");
-        let rows = tbody.find("tr").get();
-        
-        rows.sort(function(a, b) {
-            let valA, valB;
-            if (column === 'size' || column === 'files') {
-                valA = parseInt($(a).attr("data-" + column)) || 0;
-                valB = parseInt($(b).attr("data-" + column)) || 0;
-            } else if (column === 'created') {
-                valA = $(a).attr("data-" + column) || "";
-                valB = $(b).attr("data-" + column) || "";
-            } else {
-                valA = $(a).attr("data-" + column).toString().toLowerCase();
-                valB = $(b).attr("data-" + column).toString().toLowerCase();
+    $(document).on("click", "#btn-done-arrange", function(e) {
+        e.preventDefault();
+        setArrangeMode(false);
+    });
+
+    // Auto-enter arrange mode when selecting Custom (Drag & Drop) in Sort By dropdown
+    $(document).on("click", '.sort-option[data-sort="order"]', function() {
+        if (!isArrangeActive) {
+            setArrangeMode(true);
+        }
+    });
+
+    // GRID ITEM DRAG EVENTS
+    $(document).on("dragstart", ".grid-item-col", function(e) {
+        if (!isArrangeActive) return;
+        isItemDragging = true;
+        draggedElement = this;
+        dragSourceType = 'grid';
+        $(this).addClass("dragging");
+        e.originalEvent.dataTransfer.effectAllowed = "move";
+        e.originalEvent.dataTransfer.setData("text/plain", $(this).attr("data-item-id") || "");
+    });
+
+    $(document).on("dragover", ".grid-item-col", function(e) {
+        if (!isArrangeActive || dragSourceType !== 'grid' || !draggedElement || draggedElement === this) return;
+        e.preventDefault();
+        e.originalEvent.dataTransfer.dropEffect = "move";
+        $(this).addClass("drag-over-active");
+    });
+
+    $(document).on("dragleave", ".grid-item-col", function(e) {
+        $(this).removeClass("drag-over-active");
+    });
+
+    $(document).on("drop", ".grid-item-col", function(e) {
+        if (!isArrangeActive || dragSourceType !== 'grid' || !draggedElement || draggedElement === this) return;
+        e.preventDefault();
+        e.stopPropagation();
+        $(this).removeClass("drag-over-active");
+
+        let rect = this.getBoundingClientRect();
+        let midX = rect.left + rect.width / 2;
+        let clientX = e.originalEvent.clientX;
+
+        if (clientX > midX) {
+            $(this).after(draggedElement);
+        } else {
+            $(this).before(draggedElement);
+        }
+
+        saveReorderedItems('grid');
+    });
+
+    $(document).on("dragend", ".grid-item-col", function(e) {
+        $(".grid-item-col").removeClass("dragging drag-over-active");
+        draggedElement = null;
+        dragSourceType = null;
+        setTimeout(function() {
+            isItemDragging = false;
+        }, 150);
+    });
+
+    // TABLE ROW DRAG EVENTS
+    $(document).on("dragstart", "#details-table-body tr", function(e) {
+        if (!isArrangeActive) return;
+        isItemDragging = true;
+        draggedElement = this;
+        dragSourceType = 'table';
+        $(this).addClass("dragging");
+        e.originalEvent.dataTransfer.effectAllowed = "move";
+        e.originalEvent.dataTransfer.setData("text/plain", $(this).attr("data-item-id") || "");
+    });
+
+    $(document).on("dragover", "#details-table-body tr", function(e) {
+        if (!isArrangeActive || dragSourceType !== 'table' || !draggedElement || draggedElement === this) return;
+        e.preventDefault();
+        e.originalEvent.dataTransfer.dropEffect = "move";
+        $(this).addClass("drag-over-active");
+    });
+
+    $(document).on("dragleave", "#details-table-body tr", function(e) {
+        $(this).removeClass("drag-over-active");
+    });
+
+    $(document).on("drop", "#details-table-body tr", function(e) {
+        if (!isArrangeActive || dragSourceType !== 'table' || !draggedElement || draggedElement === this) return;
+        e.preventDefault();
+        e.stopPropagation();
+        $(this).removeClass("drag-over-active");
+
+        let rect = this.getBoundingClientRect();
+        let midY = rect.top + rect.height / 2;
+        let clientY = e.originalEvent.clientY;
+
+        if (clientY > midY) {
+            $(this).after(draggedElement);
+        } else {
+            $(this).before(draggedElement);
+        }
+
+        saveReorderedItems('table');
+    });
+
+    $(document).on("dragend", "#details-table-body tr", function(e) {
+        $("#details-table-body tr").removeClass("dragging drag-over-active");
+        draggedElement = null;
+        dragSourceType = null;
+        setTimeout(function() {
+            isItemDragging = false;
+        }, 150);
+    });
+
+    // Save Reordered Items AJAX & DOM Sync
+    let reorderDebounce = null;
+    function saveReorderedItems(source) {
+        let items = [];
+
+        if (source === 'grid') {
+            $("#grid-view-container .grid-item-col").each(function(idx) {
+                let type = $(this).attr("data-item-type");
+                let id = $(this).attr("data-item-id");
+                $(this).attr("data-order", idx).attr("data-sort-order", idx);
+                $(`#details-table-body tr[data-item-type="${type}"][data-item-id="${id}"]`)
+                    .attr("data-order", idx)
+                    .attr("data-sort-order", idx);
+                items.push({ type: type, id: parseInt(id, 10), order: idx });
+            });
+            syncTableRowsToGrid();
+        } else {
+            $("#details-table-body tr").each(function(idx) {
+                let type = $(this).attr("data-item-type");
+                let id = $(this).attr("data-item-id");
+                $(this).attr("data-order", idx).attr("data-sort-order", idx);
+                $(`#grid-view-container .grid-item-col[data-item-type="${type}"][data-item-id="${id}"]`)
+                    .attr("data-order", idx)
+                    .attr("data-sort-order", idx);
+                items.push({ type: type, id: parseInt(id, 10), order: idx });
+            });
+            syncGridColsToTable();
+        }
+
+        clearTimeout(reorderDebounce);
+        reorderDebounce = setTimeout(function() {
+            let csrfToken = $('[name="csrfmiddlewaretoken"]').first().val();
+            $.ajax({
+                url: "/reorder-items/",
+                type: "POST",
+                contentType: "application/json",
+                headers: { "X-CSRFToken": csrfToken },
+                data: JSON.stringify({ items: items }),
+                success: function(resp) {
+                    showReorderToast("Arrangement saved");
+                },
+                error: function() {
+                    showReorderToast("Failed to save arrangement", true);
+                }
+            });
+        }, 250);
+    }
+
+    function syncTableRowsToGrid() {
+        let $tbody = $("#details-table-body");
+        $("#grid-view-container .grid-item-col").each(function() {
+            let type = $(this).attr("data-item-type");
+            let id = $(this).attr("data-item-id");
+            let $row = $tbody.find(`tr[data-item-type="${type}"][data-item-id="${id}"]`);
+            if ($row.length > 0) {
+                $tbody.append($row);
             }
-            
-            if (valA < valB) return asc ? -1 : 1;
-            if (valA > valB) return asc ? 1 : -1;
-            return 0;
         });
-        
-        $.each(rows, function(index, row) {
-            tbody.append(row);
+    }
+
+    function syncGridColsToTable() {
+        let $gridRow = $("#grid-view-container .row");
+        $("#details-table-body tr").each(function() {
+            let type = $(this).attr("data-item-type");
+            let id = $(this).attr("data-item-id");
+            let $col = $gridRow.find(`.grid-item-col[data-item-type="${type}"][data-item-id="${id}"]`);
+            if ($col.length > 0) {
+                $gridRow.append($col);
+            }
         });
+    }
+
+    let toastHideTimer = null;
+    function showReorderToast(msg, isError) {
+        let $toast = $("#reorderToast");
+        let $icon = $toast.find("i");
+        $("#reorderToastMsg").text(msg);
+
+        if (isError) {
+            $toast.css("border-color", "#dc3545");
+            $icon.attr("class", "bi bi-exclamation-triangle-fill text-danger fs-5");
+        } else {
+            $toast.css("border-color", "var(--primary-gold)");
+            $icon.attr("class", "bi bi-check-circle-fill text-warning fs-5");
+        }
+
+        clearTimeout(toastHideTimer);
+        $toast.stop(true, true).fadeIn(200);
+        toastHideTimer = setTimeout(function() {
+            $toast.fadeOut(300);
+        }, 2000);
     }
 </script>
 {% endblock %}

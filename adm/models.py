@@ -10,28 +10,56 @@ class Folders(models.Model):
     image = models.ImageField(upload_to="folder_images", null=True, blank=True)
     thumbnail = models.ImageField(upload_to="folder_thumbnails", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    order = models.PositiveIntegerField(default=0, db_index=True)
+
+    class Meta:
+        ordering = ['order', 'id']
 
     def save(self, *args, **kwargs):
-        # We only generate a thumbnail if there's an image and no thumbnail yet, or if you want to force it.
-        # A simple approach is just to check if thumbnail is empty when image exists.
-        if self.image and not self.thumbnail:
+        needs_new_thumbnail = False
+        old_thumbnail = None
+
+        if self.pk:
             try:
+                orig = Folders.objects.filter(pk=self.pk).only('image', 'thumbnail').first()
+                if orig:
+                    if orig.image != self.image:
+                        needs_new_thumbnail = True
+                        old_thumbnail = orig.thumbnail
+            except Exception:
+                pass
+        else:
+            if self.image:
+                needs_new_thumbnail = True
+
+        if self.image and (needs_new_thumbnail or not self.thumbnail):
+            try:
+                if hasattr(self.image, 'open'):
+                    self.image.open()
                 img = Image.open(self.image)
-                # Convert to RGB if it's RGBA and we are saving as JPEG
-                if img.mode == 'RGBA':
+                if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
                     img = img.convert('RGB')
                 img.thumbnail((300, 300), Image.Resampling.LANCZOS)
                 thumb_io = BytesIO()
-                img_format = img.format if img.format else 'JPEG'
-                if img_format == 'JPEG':
-                    img.save(thumb_io, format='JPEG', quality=85)
-                else:
-                    img.save(thumb_io, format=img_format)
-                thumb_name = os.path.basename(self.image.name)
-                self.thumbnail.save(f"thumb_{thumb_name}", ContentFile(thumb_io.getvalue()), save=False)
+                img.save(thumb_io, format='JPEG', quality=85)
+
+                if old_thumbnail and old_thumbnail.name:
+                    try:
+                        old_thumbnail.delete(save=False)
+                    except Exception:
+                        pass
+
+                thumb_name = os.path.basename(self.image.name) if hasattr(self.image, 'name') and self.image.name else 'thumb.jpg'
+                base_name, _ = os.path.splitext(thumb_name)
+                self.thumbnail.save(f"thumb_{base_name}.jpg", ContentFile(thumb_io.getvalue()), save=False)
             except Exception as e:
                 print(f"Error generating thumbnail: {e}")
         elif not self.image:
+            if self.thumbnail:
+                try:
+                    self.thumbnail.delete(save=False)
+                except Exception:
+                    pass
             self.thumbnail = None
             
         super().save(*args, **kwargs)
@@ -131,6 +159,10 @@ class Files(models.Model):
     folder = models.ForeignKey(Folders, on_delete=models.CASCADE, null=True, blank=True)
     file = models.FileField(null=True, blank=True, upload_to="files")
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    order = models.PositiveIntegerField(default=0, db_index=True)
+
+    class Meta:
+        ordering = ['order', 'id']
 
     @property
     def file_size(self):

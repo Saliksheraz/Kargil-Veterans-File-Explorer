@@ -7,6 +7,9 @@ from django.contrib.auth.decorators import login_required
 from adm.models import Folders, Files
 
 from django.views.decorators.clickjacking import xframe_options_sameorigin
+from django.views.decorators.http import require_POST
+from django.db import transaction
+import json
 
 @login_required
 @xframe_options_sameorigin
@@ -376,6 +379,168 @@ def extract_pptx_links(pptx_path, orig_to_new_map=None):
 
     return slide_links_map
 
+def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None):
+    """
+    Extracts embedded and linked videos from a PPTX presentation.
+    Extracts embedded video media files into previews_dir, and determines their
+    slide numbers and coordinate boundaries (left_pct, top_pct, width_pct, height_pct).
+    Returns a dictionary mapping slide number (1-indexed) to a list of video objects.
+    """
+    if not os.path.exists(pptx_path) or not pptx_path.lower().endswith('.pptx'):
+        return {}
+
+    try:
+        z = zipfile.ZipFile(pptx_path)
+    except Exception:
+        return {}
+
+    cx, cy = 12192000, 6858000
+    try:
+        pres_tree = ET.fromstring(z.read('ppt/presentation.xml'))
+        sld_sz = pres_tree.find('.//{http://schemas.openxmlformats.org/presentationml/2006/main}sldSz')
+        if sld_sz is not None:
+            cx = int(sld_sz.attrib.get('cx', cx))
+            cy = int(sld_sz.attrib.get('cy', cy))
+    except Exception:
+        pass
+
+    video_exts = ('.mp4', '.m4v', '.webm', '.ogv', '.mov', '.avi', '.wmv', '.mkv', '.mpg', '.mpeg', '.3gp')
+    slide_videos_map = {}
+
+    for i in range(1, 300):
+        xml_name = f'ppt/slides/slide{i}.xml'
+        if xml_name not in z.namelist():
+            break
+        rels_name = f'ppt/slides/_rels/slide{i}.xml.rels'
+        video_rels = {}
+        if rels_name in z.namelist():
+            try:
+                rels_tree = ET.fromstring(z.read(rels_name))
+                for r in rels_tree:
+                    r_id = r.attrib.get('Id', '')
+                    target = r.attrib.get('Target', '')
+                    r_type = r.attrib.get('Type', '').lower()
+                    if ('video' in r_type or 'media' in r_type) or target.lower().endswith(video_exts):
+                        video_rels[r_id] = target
+            except Exception:
+                pass
+
+        if not video_rels:
+            continue
+
+        try:
+            slide_tree = ET.fromstring(z.read(xml_name))
+            found_shapes = []
+
+            def process_candidate_shape(elem):
+                matched_targets = []
+                for vf in elem.iter():
+                    tag_local = vf.tag.split('}').pop()
+                    if tag_local in ('videoFile', 'media', 'quickTimeFile'):
+                        for attr_name, attr_val in vf.attrib.items():
+                            if attr_val in video_rels and video_rels[attr_val] not in matched_targets:
+                                matched_targets.append(video_rels[attr_val])
+                    for attr_name, attr_val in vf.attrib.items():
+                        if attr_name.endswith('id') or attr_name.endswith('link') or attr_name.endswith('embed'):
+                            if attr_val in video_rels and video_rels[attr_val] not in matched_targets:
+                                matched_targets.append(video_rels[attr_val])
+
+                if matched_targets:
+                    xfrm = elem.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}xfrm')
+                    off_x, off_y, ext_cx, ext_cy = 0, 0, cx, cy
+                    has_coords = False
+                    if xfrm is not None:
+                        off = xfrm.find('{http://schemas.openxmlformats.org/drawingml/2006/main}off')
+                        ext = xfrm.find('{http://schemas.openxmlformats.org/drawingml/2006/main}ext')
+                        if off is not None and ext is not None and 'x' in off.attrib and 'cx' in ext.attrib:
+                            off_x = int(off.attrib['x'])
+                            off_y = int(off.attrib['y'])
+                            ext_cx = int(ext.attrib['cx'])
+                            ext_cy = int(ext.attrib['cy'])
+                            has_coords = True
+
+                    for tgt in matched_targets:
+                        found_shapes.append({
+                            'target': tgt,
+                            'off_x': off_x,
+                            'off_y': off_y,
+                            'ext_cx': ext_cx,
+                            'ext_cy': ext_cy,
+                            'has_coords': has_coords
+                        })
+
+            for pic in slide_tree.iter('{http://schemas.openxmlformats.org/presentationml/2006/main}pic'):
+                process_candidate_shape(pic)
+            for sp in slide_tree.iter('{http://schemas.openxmlformats.org/presentationml/2006/main}sp'):
+                process_candidate_shape(sp)
+            for gf in slide_tree.iter('{http://schemas.openxmlformats.org/presentationml/2006/main}graphicFrame'):
+                process_candidate_shape(gf)
+
+            if not found_shapes:
+                for r_id, tgt in video_rels.items():
+                    found_shapes.append({
+                        'target': tgt,
+                        'off_x': int(cx * 0.1),
+                        'off_y': int(cy * 0.1),
+                        'ext_cx': int(cx * 0.8),
+                        'ext_cy': int(cy * 0.8),
+                        'has_coords': True
+                    })
+
+            slide_videos = []
+            for shape in found_shapes:
+                tgt = shape['target']
+                video_url = None
+
+                if tgt.startswith('http://') or tgt.startswith('https://'):
+                    video_url = tgt
+                else:
+                    norm_target = tgt.replace('../', 'ppt/').lstrip('/')
+                    if not norm_target.startswith('ppt/'):
+                        norm_target = 'ppt/' + norm_target
+
+                    if norm_target in z.namelist():
+                        clean_fname = f"video_{cache_key}_{os.path.basename(norm_target)}"
+                        dest_file = os.path.join(previews_dir, clean_fname)
+                        if not os.path.exists(dest_file):
+                            try:
+                                with open(dest_file, 'wb') as out_f:
+                                    out_f.write(z.read(norm_target))
+                            except Exception as e:
+                                print(f"Error extracting video from pptx: {e}")
+
+                        if os.path.exists(dest_file):
+                            video_url = f"{settings.MEDIA_URL}previews/{clean_fname}"
+
+                if video_url:
+                    left_pct = round((shape['off_x'] / cx) * 100, 3)
+                    top_pct = round((shape['off_y'] / cy) * 100, 3)
+                    width_pct = round((shape['ext_cx'] / cx) * 100, 3)
+                    height_pct = round((shape['ext_cy'] / cy) * 100, 3)
+
+                    width_pct = max(10, min(100, width_pct))
+                    height_pct = max(10, min(100, height_pct))
+                    left_pct = max(0, min(100 - width_pct, left_pct))
+                    top_pct = max(0, min(100 - height_pct, top_pct))
+
+                    slide_videos.append({
+                        'url': video_url,
+                        'left_pct': left_pct,
+                        'top_pct': top_pct,
+                        'width_pct': width_pct,
+                        'height_pct': height_pct,
+                        'name': os.path.basename(tgt)
+                    })
+
+            if slide_videos:
+                target_page_idx = orig_to_new_map.get(i, i) if orig_to_new_map else i
+                slide_videos_map[target_page_idx] = slide_videos
+
+        except Exception as e:
+            print(f"Error processing slide {i} videos: {e}")
+
+    return slide_videos_map
+
 @login_required
 def pptx_to_pdf(request):
     """
@@ -383,7 +548,7 @@ def pptx_to_pdf(request):
     Converts a PPTX / PPT file on the server into a native PDF using LibreOffice,
     supporting slide animation steps/steppers by expanding animated slides into
     sequential static frames. Caches the result in media/previews/, extracts interactive hyperlinks,
-    and returns the response.
+    extracts embedded/linked slide videos, and returns the response.
     """
     file_url = request.GET.get('url', '')
     if not file_url:
@@ -417,11 +582,13 @@ def pptx_to_pdf(request):
         if source_path.lower().endswith('.pptx'):
             _, orig_to_new_map, _, _ = get_pptx_animation_map(source_path)
         slide_links = extract_pptx_links(source_path, orig_to_new_map)
+        slide_videos = extract_pptx_videos(source_path, previews_dir, cache_key, orig_to_new_map)
         return JsonResponse({
             'success': True,
             'pdf_url': cached_pdf_url,
             'cached': True,
             'links': slide_links,
+            'videos': slide_videos,
             'source_url': file_url
         })
 
@@ -476,11 +643,13 @@ def pptx_to_pdf(request):
                 os.remove(cached_pdf_path)
             os.rename(default_out_pdf, cached_pdf_path)
 
+            slide_videos = extract_pptx_videos(source_path, previews_dir, cache_key, orig_to_new_map)
             return JsonResponse({
                 'success': True,
                 'pdf_url': cached_pdf_url,
                 'cached': False,
                 'links': slide_links,
+                'videos': slide_videos,
                 'source_url': file_url
             })
         else:
@@ -602,11 +771,25 @@ def update_folder(request, pk):
             if name:
                 folder.name = name
             
-            image_obj = request.FILES.get("image")
-            if image_obj:
-                folder.image = image_obj
+            remove_image = request.POST.get("remove_image") in ("true", "1", "on")
+            if remove_image:
+                if folder.image:
+                    try:
+                        folder.image.delete(save=False)
+                    except Exception:
+                        pass
+                    folder.image = None
+                if folder.thumbnail:
+                    try:
+                        folder.thumbnail.delete(save=False)
+                    except Exception:
+                        pass
+                    folder.thumbnail = None
+            else:
+                image_obj = request.FILES.get("image")
+                if image_obj:
+                    folder.image = image_obj
             
-            # Optionally clear image if a specific flag is passed, but UI might not have it yet.
             folder.save()
             
             if folder.parent_folder:
@@ -645,3 +828,27 @@ def delete_file(request, pk):
         except Files.DoesNotExist:
             pass
     return redirect("/")
+
+@login_required
+@require_POST
+def reorder_items(request):
+    """
+    Persists drag-and-drop arrangement of files and folders.
+    Accepts JSON: { "items": [ {"type": "folder"|"file", "id": 1, "order": 0}, ... ] }
+    """
+    try:
+        data = json.loads(request.body)
+        items = data.get('items', [])
+        with transaction.atomic():
+            for item in items:
+                item_type = item.get('type')
+                item_id = item.get('id')
+                item_order = int(item.get('order', 0))
+                if item_type == 'folder':
+                    Folders.objects.filter(id=item_id).update(order=item_order)
+                elif item_type == 'file':
+                    Files.objects.filter(id=item_id).update(order=item_order)
+        return JsonResponse({'status': 'success', 'updated_count': len(items)})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
