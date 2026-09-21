@@ -565,14 +565,52 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            box-sizing: border-box;
+        }
+        .pptx-video-inner-box {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #000;
+            border: 1.5px solid rgba(212,175,55,0.6);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .pptx-video-container video {
             width: 100%;
             height: 100%;
             object-fit: contain;
             background: #000000;
+            transition: transform 0.2s ease;
+        }
+        .pptx-video-rotate-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            z-index: 35;
+            background: rgba(0, 0, 0, 0.65);
+            color: #d4af37;
+            border: 1px solid rgba(212, 175, 55, 0.5);
             border-radius: 4px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            padding: 2px 7px;
+            font-size: 11px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s ease, background-color 0.2s ease, transform 0.15s ease;
+            backdrop-filter: blur(2px);
+        }
+        .pptx-video-container:hover .pptx-video-rotate-btn {
+            opacity: 1;
+        }
+        .pptx-video-rotate-btn:hover {
+            background: rgba(27, 48, 34, 0.9);
+            color: #fff;
+            transform: scale(1.08);
+            border-color: #d4af37;
         }
 
         {% block extra_css %}{% endblock %}
@@ -1181,20 +1219,39 @@
 
                             // Render interactive video players on slide
                             let curVideos = (slideVideos && (slideVideos[currentPage] || slideVideos[String(currentPage)])) || [];
-                            curVideos.forEach(function(vid) {
+                            curVideos.forEach(function(vid, vIdx) {
                                 let videoBox = document.createElement("div");
                                 videoBox.className = "pptx-video-container";
                                 videoBox.style.left = vid.left_pct + "%";
                                 videoBox.style.top = vid.top_pct + "%";
                                 videoBox.style.width = vid.width_pct + "%";
                                 videoBox.style.height = vid.height_pct + "%";
+
+                                let initialRot = (typeof vid.rotation === 'number') ? vid.rotation : 0;
+                                let currentRot = initialRot;
+
                                 videoBox.innerHTML = `
-                                    <div class="position-relative w-100 h-100 rounded-2 overflow-hidden shadow-sm" style="background: #000; border: 1.5px solid rgba(212,175,55,0.6);">
-                                        <video controls playsinline preload="metadata" style="width: 100%; height: 100%; object-fit: contain; background: #000;" src="${vid.url}">
+                                    <div class="pptx-video-inner-box">
+                                        <button type="button" class="pptx-video-rotate-btn" title="Rotate Video 90° Clockwise">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>Rotate
+                                        </button>
+                                        <video controls playsinline preload="metadata" src="${vid.url}" style="transform: rotate(${initialRot}deg);">
                                             Your browser does not support HTML5 video playback.
                                         </video>
                                     </div>
                                 `;
+
+                                let rotateBtn = videoBox.querySelector(".pptx-video-rotate-btn");
+                                let videoElem = videoBox.querySelector("video");
+                                if (rotateBtn && videoElem) {
+                                    rotateBtn.addEventListener("click", function(e) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        currentRot = (currentRot + 90) % 360;
+                                        videoElem.style.transform = `rotate(${currentRot}deg)`;
+                                    });
+                                }
+
                                 overlay.appendChild(videoBox);
                             });
                         }

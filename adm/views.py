@@ -448,8 +448,15 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                 if matched_targets:
                     xfrm = elem.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}xfrm')
                     off_x, off_y, ext_cx, ext_cy = 0, 0, cx, cy
+                    rot_deg = 0
                     has_coords = False
                     if xfrm is not None:
+                        rot_attr = xfrm.attrib.get('rot')
+                        if rot_attr:
+                            try:
+                                rot_deg = round(int(rot_attr) / 60000.0, 1)
+                            except (ValueError, TypeError):
+                                rot_deg = 0
                         off = xfrm.find('{http://schemas.openxmlformats.org/drawingml/2006/main}off')
                         ext = xfrm.find('{http://schemas.openxmlformats.org/drawingml/2006/main}ext')
                         if off is not None and ext is not None and 'x' in off.attrib and 'cx' in ext.attrib:
@@ -466,6 +473,7 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                             'off_y': off_y,
                             'ext_cx': ext_cx,
                             'ext_cy': ext_cy,
+                            'rotation': rot_deg,
                             'has_coords': has_coords
                         })
 
@@ -484,6 +492,7 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                         'off_y': int(cy * 0.1),
                         'ext_cx': int(cx * 0.8),
                         'ext_cy': int(cy * 0.8),
+                        'rotation': 0,
                         'has_coords': True
                     })
 
@@ -529,6 +538,7 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                         'top_pct': top_pct,
                         'width_pct': width_pct,
                         'height_pct': height_pct,
+                        'rotation': shape.get('rotation', 0),
                         'name': os.path.basename(tgt)
                     })
 
