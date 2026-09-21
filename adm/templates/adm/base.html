@@ -1570,7 +1570,7 @@
                                     y2: (endY / slideH) * 100,
                                     color: strokeColor
                                 });
-                            } else if (tag === 'sp') {
+                            } else if (tag === 'sp' || tag === 'pic') {
                                 let sOffX = 0, sOffY = 0, sExtCx = 0, sExtCy = 0;
                                 let rot = 0;
                                 let hasPos = false;
@@ -1641,7 +1641,7 @@
                                     }
                                 }
 
-                                // Hyperlink Extraction (shape-level or text-level)
+                                // Hyperlink Extraction (shape-level, picture-level, or text-level)
                                 let slideJump = null;
                                 let hlinkUrl = null;
                                 let allHlinks = child.getElementsByTagName("a:hlinkClick");
@@ -1652,6 +1652,7 @@
                                     let hElem = allHlinks[hi];
                                     let rId = hElem.getAttribute("r:id") || hElem.getAttribute("id") || "";
                                     let action = hElem.getAttribute("action") || "";
+
                                     if (rId && relsDict && relsDict[rId]) {
                                         let target = relsDict[rId];
                                         let sm = target.match(/slide(\d+)\.xml/i);
@@ -1659,15 +1660,30 @@
                                             let sFileName = `slide${sm[1]}.xml`;
                                             slideJump = (slideFileMap && slideFileMap[sFileName]) ? slideFileMap[sFileName] : parseInt(sm[1], 10);
                                             break;
-                                        } else if (/^https?:\/\//i.test(target)) {
+                                        } else if (/^(https?:\/\/|mailto:)/i.test(target)) {
                                             hlinkUrl = target;
                                             break;
                                         }
-                                    } else if (action.includes("hlinksldjump")) {
-                                        let sm = action.match(/slide(\d+)/i);
-                                        if (sm) {
-                                            slideJump = parseInt(sm[1], 10);
-                                            break;
+                                    }
+
+                                    if (!slideJump && action) {
+                                        if (action.includes("hlinksldjump")) {
+                                            let sm = action.match(/slide(\d+)/i);
+                                            if (sm) {
+                                                slideJump = parseInt(sm[1], 10);
+                                                break;
+                                            }
+                                        } else if (action.includes("hlinkshowjump")) {
+                                            if (action.includes("jump=nextslide")) {
+                                                slideJump = Math.min(totalSlides, currentSlide + 1);
+                                            } else if (action.includes("jump=previousslide")) {
+                                                slideJump = Math.max(1, currentSlide - 1);
+                                            } else if (action.includes("jump=firstslide")) {
+                                                slideJump = 1;
+                                            } else if (action.includes("jump=lastslide")) {
+                                                slideJump = totalSlides;
+                                            }
+                                            if (slideJump) break;
                                         }
                                     }
                                 }
@@ -2037,7 +2053,20 @@
                                             '</div>';
                                     }
 
-                                    if (!bodyHtml && !imagesHtml && !videosHtml) {
+                                    let actionButtonsHtml = '';
+                                    let linkedShapes = parsed.shapes.filter(s => s.slideJump || s.hlinkUrl);
+                                    if (linkedShapes.length > 0) {
+                                        actionButtonsHtml = '<div class="d-flex flex-wrap justify-content-center gap-2 mt-4">' +
+                                            linkedShapes.map(s => {
+                                                let btnLabel = s.text || (s.slideJump ? `Go to Slide ${s.slideJump}` : 'Open Link');
+                                                let attr = s.slideJump ? `data-slide-jump="${s.slideJump}"` : `data-hlink-url="${$('<div>').text(s.hlinkUrl).html()}"`;
+                                                let icon = s.slideJump ? '<i class="bi bi-arrow-right-circle me-1"></i>' : '<i class="bi bi-box-arrow-up-right me-1"></i>';
+                                                return `<button type="button" class="btn btn-warning btn-sm fw-bold px-3 py-1 rounded-pill shadow-xs" ${attr}>${icon}${btnLabel}</button>`;
+                                            }).join('') +
+                                            '</div>';
+                                    }
+
+                                    if (!bodyHtml && !imagesHtml && !videosHtml && !actionButtonsHtml) {
                                         bodyHtml = '<p class="text-muted fst-italic mt-3">(Slide graphics / media content)</p>';
                                     }
 
@@ -2045,7 +2074,7 @@
                                         <div class="pptx-fallback-card bg-white p-4 p-md-5 rounded-4 shadow-sm border mx-auto text-center d-flex flex-column justify-content-center align-items-center" style="min-height: 380px; max-width: 780px; border-top: 6px solid var(--primary-gold) !important;">
                                             <span class="badge bg-warning text-dark font-monospace mb-3 px-3 py-1">Slide ${slideNum} of ${totalSlides}</span>
                                             <h4 class="fw-bold text-dark mb-3 text-break">${$('<div>').text(slideTitle).html()}</h4>
-                                            <div class="w-100">${videosHtml}${imagesHtml}${bodyHtml}</div>
+                                            <div class="w-100">${videosHtml}${imagesHtml}${bodyHtml}${actionButtonsHtml}</div>
                                         </div>
                                     `;
                                 }

@@ -308,11 +308,21 @@ def extract_pptx_links(pptx_path, orig_to_new_map=None):
     except Exception:
         pass
 
+    slide_files = [name for name in z.namelist() if re.match(r'ppt/slides/slide\d+\.xml', name)]
+    total_slides = len(slide_files) if slide_files else 1
+
+    P_NS = 'http://schemas.openxmlformats.org/presentationml/2006/main'
+    A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+    R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+
     slide_links_map = {}
-    for i in range(1, 200):
+    for i in range(1, total_slides + 50):
         xml_name = f'ppt/slides/slide{i}.xml'
         if xml_name not in z.namelist():
-            break
+            if i > total_slides:
+                break
+            continue
+
         rels_name = f'ppt/slides/_rels/slide{i}.xml.rels'
         rels = {}
         if rels_name in z.namelist():
@@ -327,49 +337,120 @@ def extract_pptx_links(pptx_path, orig_to_new_map=None):
             slide_tree = ET.fromstring(z.read(xml_name))
             links = []
 
-            def check_element(elem, xfrm_sp=None):
-                for hlink in elem.iter('{http://schemas.openxmlformats.org/drawingml/2006/main}hlinkClick'):
-                    rId = hlink.attrib.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id', '')
-                    action = hlink.attrib.get('action', '')
-                    target = rels.get(rId, '')
-                    slide_target = None
-                    url_target = None
-                    if target:
-                        if 'slide' in target:
-                            m = re.search(r'slide(\d+)', target)
-                            if m: slide_target = int(m.group(1))
-                        elif target.startswith('http'):
-                            url_target = target
-                    elif 'hlinksldjump' in action:
-                        m = re.search(r'slide(\d+)', action)
-                        if m: slide_target = int(m.group(1))
+            def parse_hlink(hlink):
+                rId = hlink.attrib.get(f'{{{R_NS}}}id', '')
+                action = hlink.attrib.get('action', '')
+                target = rels.get(rId, '')
+                slide_target = None
+                url_target = None
 
-                    if not slide_target and not url_target:
-                        continue
+                if target:
+                    if 'slide' in target:
+                        m = re.search(r'slide(\d+)', target, re.IGNORECASE)
+                        if m:
+                            slide_target = int(m.group(1))
+                    elif target.startswith('http') or target.startswith('mailto:'):
+                        url_target = target
 
-                    # If animations were expanded, map original slide target to new first frame index
-                    if slide_target and orig_to_new_map and slide_target in orig_to_new_map:
-                        slide_target = orig_to_new_map[slide_target]
+                if not slide_target and action:
+                    if 'ppaction://hlinksldjump' in action:
+                        m = re.search(r'slide(\d+)', action, re.IGNORECASE)
+                        if m:
+                            slide_target = int(m.group(1))
+                    elif 'ppaction://hlinkshowjump' in action:
+                        if 'jump=nextslide' in action:
+                            slide_target = min(total_slides, i + 1)
+                        elif 'jump=previousslide' in action:
+                            slide_target = max(1, i - 1)
+                        elif 'jump=firstslide' in action:
+                            slide_target = 1
+                        elif 'jump=lastslide' in action:
+                            slide_target = total_slides
 
-                    sp_to_search = xfrm_sp if xfrm_sp is not None else elem
-                    xfrm = sp_to_search.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}xfrm')
-                    if xfrm is not None:
-                        off = xfrm.find('{http://schemas.openxmlformats.org/drawingml/2006/main}off')
-                        ext = xfrm.find('{http://schemas.openxmlformats.org/drawingml/2006/main}ext')
-                        if off is not None and ext is not None and 'x' in off.attrib and 'cx' in ext.attrib:
-                            links.append({
-                                'left_pct': round((int(off.attrib['x']) / cx) * 100, 3),
-                                'top_pct': round((int(off.attrib['y']) / cy) * 100, 3),
-                                'width_pct': round((int(ext.attrib['cx']) / cx) * 100, 3),
-                                'height_pct': round((int(ext.attrib['cy']) / cy) * 100, 3),
-                                'slide_jump': slide_target,
-                                'url': url_target
-                            })
+                return slide_target, url_target
 
-            for sp in slide_tree.iter('{http://schemas.openxmlformats.org/presentationml/2006/main}sp'):
-                check_element(sp, sp)
-            for pic in slide_tree.iter('{http://schemas.openxmlformats.org/presentationml/2006/main}pic'):
-                check_element(pic, pic)
+            def traverse_container(container, off_x=0, off_y=0, sc_x=1.0, sc_y=1.0):
+                for child in container:
+                    tag = child.tag.split('}')[-1]
+                    if tag == 'grpSp':
+                        gOffX, gOffY, gChOffX, gChOffY = 0, 0, 0, 0
+                        gExtCx, gExtCy, gChExtCx, gChExtCy = 1, 1, 1, 1
+                        grpSpPr = child.find(f'{{{P_NS}}}grpSpPr')
+                        if grpSpPr is not None:
+                            xfrm = grpSpPr.find(f'{{{A_NS}}}xfrm')
+                            if xfrm is not None:
+                                off = xfrm.find(f'{{{A_NS}}}off')
+                                chOff = xfrm.find(f'{{{A_NS}}}chOff')
+                                ext = xfrm.find(f'{{{A_NS}}}ext')
+                                chExt = xfrm.find(f'{{{A_NS}}}chExt')
+                                if off is not None:
+                                    gOffX = int(off.attrib.get('x', 0))
+                                    gOffY = int(off.attrib.get('y', 0))
+                                if chOff is not None:
+                                    gChOffX = int(chOff.attrib.get('x', 0))
+                                    gChOffY = int(chOff.attrib.get('y', 0))
+                                if ext is not None:
+                                    gExtCx = int(ext.attrib.get('cx', 1))
+                                    gExtCy = int(ext.attrib.get('cy', 1))
+                                if chExt is not None:
+                                    gChExtCx = int(chExt.attrib.get('cx', 1))
+                                    gChExtCy = int(chExt.attrib.get('cy', 1))
+
+                        ratio_x = gExtCx / (gChExtCx or 1)
+                        ratio_y = gExtCy / (gChExtCy or 1)
+                        newScX = ratio_x * sc_x
+                        newScY = ratio_y * sc_y
+                        newOffX = off_x + (gOffX - gChOffX * ratio_x) * sc_x
+                        newOffY = off_y + (gOffY - gChOffY * ratio_y) * sc_y
+
+                        traverse_container(child, newOffX, newOffY, newScX, newScY)
+                    elif tag in ('sp', 'pic', 'graphicFrame'):
+                        hlinks = list(child.iter(f'{{{A_NS}}}hlinkClick'))
+                        active_hlinks = []
+                        for h in hlinks:
+                            s_tgt, u_tgt = parse_hlink(h)
+                            if s_tgt or u_tgt:
+                                active_hlinks.append((s_tgt, u_tgt))
+
+                        if not active_hlinks:
+                            continue
+
+                        xfrm = child.find(f'.//{{{A_NS}}}xfrm')
+                        if xfrm is not None:
+                            off = xfrm.find(f'{{{A_NS}}}off')
+                            ext = xfrm.find(f'{{{A_NS}}}ext')
+                            if off is not None and ext is not None and 'x' in off.attrib and 'cx' in ext.attrib:
+                                sx = int(off.attrib['x'])
+                                sy = int(off.attrib['y'])
+                                sw = int(ext.attrib['cx'])
+                                sh = int(ext.attrib['cy'])
+
+                                fx = off_x + sx * sc_x
+                                fy = off_y + sy * sc_y
+                                fw = sw * sc_x
+                                fh = sh * sc_y
+
+                                s_tgt, u_tgt = active_hlinks[0]
+                                if s_tgt and orig_to_new_map and s_tgt in orig_to_new_map:
+                                    s_tgt = orig_to_new_map[s_tgt]
+
+                                left_pct = max(0.0, min(100.0, round((fx / cx) * 100, 3)))
+                                top_pct = max(0.0, min(100.0, round((fy / cy) * 100, 3)))
+                                width_pct = max(0.1, min(100.0 - left_pct, round((fw / cx) * 100, 3)))
+                                height_pct = max(0.1, min(100.0 - top_pct, round((fh / cy) * 100, 3)))
+
+                                links.append({
+                                    'left_pct': left_pct,
+                                    'top_pct': top_pct,
+                                    'width_pct': width_pct,
+                                    'height_pct': height_pct,
+                                    'slide_jump': s_tgt,
+                                    'url': u_tgt
+                                })
+
+            spTree = slide_tree.find(f'.//{{{P_NS}}}spTree')
+            if spTree is not None:
+                traverse_container(spTree)
 
             if links:
                 target_page_idx = orig_to_new_map.get(i, i) if orig_to_new_map else i
