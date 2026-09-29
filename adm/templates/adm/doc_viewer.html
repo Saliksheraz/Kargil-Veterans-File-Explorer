@@ -261,13 +261,13 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: transform 0.2s ease;
         }
         .pptx-video-container video {
             width: 100%;
             height: 100%;
             object-fit: contain;
             background: #000000;
-            transition: transform 0.2s ease;
         }
         .pptx-video-rotate-btn {
             position: absolute;
@@ -629,11 +629,13 @@
                                 videoBox.style.width = vid.width_pct + "%";
                                 videoBox.style.height = vid.height_pct + "%";
 
-                                // Videos keep their original (already-encoded) orientation by default;
-                                // the shape's PPTX rotation is only offered via the manual Rotate button
-                                // since browsers already auto-correct playback using the video's own
-                                // rotation metadata, and re-applying it here would rotate it twice.
-                                let currentRot = 0;
+                                // The video's outer box (left/top/width/height) is the shape's
+                                // *pre-rotation* bounding box, exactly as PowerPoint stores it in
+                                // xfrm off/ext. Rotating the inner box (same rect, same center) by
+                                // the shape's own rot value reproduces PowerPoint's rendering exactly
+                                // — including 90°/270° cases where the visual footprint is swapped,
+                                // since the outer box has no overflow clipping of its own.
+                                let currentRot = (typeof vid.rotation === 'number') ? vid.rotation : 0;
 
                                 // A video shape can itself carry a hyperlink (e.g. jump-to-slide or a
                                 // URL). Since the video overlay sits visually above the hyperlink hotspot,
@@ -647,25 +649,25 @@
                                 });
 
                                 videoBox.innerHTML = `
-                                    <div class="pptx-video-inner-box">
-                                        <button type="button" class="pptx-video-rotate-btn" title="Rotate Video 90° Clockwise">
-                                            <i class="bi bi-arrow-clockwise me-1"></i>Rotate
-                                        </button>
-                                        ${matchedLink ? `<button type="button" class="pptx-video-link-btn" title="${matchedLink.slide_jump ? 'Jump to Slide ' + matchedLink.slide_jump : 'Open: ' + matchedLink.url}"><i class="bi bi-link-45deg me-1"></i>Link</button>` : ''}
-                                        <video controls playsinline preload="metadata" src="${vid.url}" style="transform: rotate(${currentRot}deg);">
+                                    <button type="button" class="pptx-video-rotate-btn" title="Rotate Video 90° Clockwise">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Rotate
+                                    </button>
+                                    ${matchedLink ? `<button type="button" class="pptx-video-link-btn" title="${matchedLink.slide_jump ? 'Jump to Slide ' + matchedLink.slide_jump : 'Open: ' + matchedLink.url}"><i class="bi bi-link-45deg me-1"></i>Link</button>` : ''}
+                                    <div class="pptx-video-inner-box" style="transform: rotate(${currentRot}deg);">
+                                        <video controls playsinline preload="metadata" src="${vid.url}">
                                             Your browser does not support HTML5 video playback.
                                         </video>
                                     </div>
                                 `;
 
                                 let rotateBtn = videoBox.querySelector(".pptx-video-rotate-btn");
-                                let videoElem = videoBox.querySelector("video");
-                                if (rotateBtn && videoElem) {
+                                let innerBox = videoBox.querySelector(".pptx-video-inner-box");
+                                if (rotateBtn && innerBox) {
                                     rotateBtn.addEventListener("click", function(e) {
                                         e.preventDefault();
                                         e.stopPropagation();
                                         currentRot = (currentRot + 90) % 360;
-                                        videoElem.style.transform = `rotate(${currentRot}deg)`;
+                                        innerBox.style.transform = `rotate(${currentRot}deg)`;
                                     });
                                 }
 

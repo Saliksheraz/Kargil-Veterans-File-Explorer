@@ -11,6 +11,10 @@ echo Installing dependencies...
 pip install -r requirements.txt
 if errorlevel 1 goto :error
 
+echo Creating database migrations...
+python manage.py makemigrations
+if errorlevel 1 goto :error
+
 echo Running database migrations...
 python manage.py migrate
 if errorlevel 1 goto :error
