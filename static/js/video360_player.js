@@ -34,6 +34,7 @@
         var title = options.title || 'Video Player';
         var is360Mode = (typeof options.is360Default === 'boolean') ? options.is360Default : is360Video(title);
         var autoPlay = options.autoPlay !== false;
+        var modeSelectedByUser = false;
 
         // Ensure container is empty and styled
         container.innerHTML = '';
@@ -41,6 +42,7 @@
         // Build Player HTML structure
         var wrapper = document.createElement('div');
         wrapper.className = 'video360-wrapper';
+        if (options.embedded) wrapper.classList.add('video360-embedded');
         wrapper.tabIndex = 0; // for keyboard focus
 
         wrapper.innerHTML = [
@@ -313,6 +315,7 @@
             var duration = 400; // ms
 
             function step(now) {
+                if (isDestroyed) return;
                 var elapsed = now - startTime;
                 var progress = Math.min(elapsed / duration, 1);
                 var ease = 0.5 - Math.cos(progress * Math.PI) / 2; // easeInOutQuad
@@ -342,6 +345,7 @@
             }
 
             isUserInteracting = true;
+            wrapper.focus({ preventScroll: true });
             pointerStartX = event.clientX;
             pointerStartY = event.clientY;
             pointerMoved = false;
@@ -463,7 +467,13 @@
                 }
 
                 if (!renderer) {
-                    initThreeJS();
+                    try {
+                        initThreeJS();
+                    } catch (err) {
+                        console.warn('[Video360] WebGL unavailable; using flat playback.', err);
+                        setMode(false);
+                        return;
+                    }
                 } else {
                     onWindowResize();
                     if (texture) texture.needsUpdate = true;
@@ -565,6 +575,13 @@
 
         video.addEventListener('loadedmetadata', function () {
             totalDurationEl.textContent = formatTime(video.duration);
+            // PowerPoint usually renames embedded clips to media1.mp4, etc.
+            // A 2:1 frame is a useful equirectangular hint; the mode toggle
+            // remains available for other projections and false positives.
+            if (options.autoDetect360 && !modeSelectedByUser && video.videoHeight > 0 &&
+                    Math.abs(video.videoWidth / video.videoHeight - 2) < 0.05) {
+                setMode(true);
+            }
             if (autoPlay) {
                 togglePlay();
             }
@@ -600,9 +617,10 @@
             timeTooltip.style.display = 'none';
         });
 
-        document.addEventListener('mouseup', function () {
+        function onDocumentMouseUp() {
             isSeeking = false;
-        });
+        }
+        document.addEventListener('mouseup', onDocumentMouseUp);
 
         // UI Controls Events - stop propagation to avoid canvas drag interception
         centerPlayBtn.addEventListener('click', function (e) {
@@ -636,10 +654,12 @@
 
         btnMode360.addEventListener('click', function (e) {
             e.stopPropagation();
+            modeSelectedByUser = true;
             setMode(true);
         });
         btnModeFlat.addEventListener('click', function (e) {
             e.stopPropagation();
+            modeSelectedByUser = true;
             setMode(false);
         });
 
@@ -701,18 +721,21 @@
             }
         });
 
-        document.addEventListener('fullscreenchange', function () {
-            var isFull = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+        function onFullscreenChange() {
+            var isFull = (document.fullscreenElement || document.webkitFullscreenElement) === wrapper;
             if (isFull) {
                 btnFullscreen.innerHTML = '<i class="bi bi-fullscreen-exit"></i>';
             } else {
                 btnFullscreen.innerHTML = '<i class="bi bi-arrows-fullscreen"></i>';
             }
             setTimeout(onWindowResize, 150);
-        });
+        }
+        document.addEventListener('fullscreenchange', onFullscreenChange);
 
         // Keyboard Controls
         wrapper.addEventListener('keydown', function (e) {
+            // Keep presentation shortcuts from advancing the slide while
+            // the focused player is controlling playback or the camera.
             switch (e.key) {
                 case ' ':
                 case 'k':
@@ -780,6 +803,7 @@
                     }
                     break;
             }
+            if (e.defaultPrevented) e.stopPropagation();
         });
 
         // Canvas Interaction Events strictly on canvasContainer
@@ -795,6 +819,8 @@
         wrapper.addEventListener('touchstart', showControls, { passive: true });
 
         window.addEventListener('resize', onWindowResize);
+        var resizeObserver = window.ResizeObserver ? new ResizeObserver(onWindowResize) : null;
+        if (resizeObserver) resizeObserver.observe(wrapper);
 
         // Auto-fade hint overlay after 4 seconds
         setTimeout(function () {
@@ -805,10 +831,7 @@
         }, 4500);
 
         // Initialize 3D Engine & Mode
-        initThreeJS();
-        if (!is360Mode) {
-            setMode(false);
-        }
+        setMode(is360Mode);
 
         // Return controller object with clean lifecycle methods
         var playerInstance = {
@@ -818,7 +841,12 @@
             resetView: resetView,
             togglePlay: togglePlay,
             destroy: function () {
+                if (isDestroyed) return;
                 isDestroyed = true;
+                clearTimeout(controlsTimeout);
+                document.removeEventListener('mouseup', onDocumentMouseUp);
+                document.removeEventListener('fullscreenchange', onFullscreenChange);
+                if (resizeObserver) resizeObserver.disconnect();
                 if (animationFrameId) {
                     cancelAnimationFrame(animationFrameId);
                     animationFrameId = null;
@@ -834,6 +862,7 @@
                 if (renderer) {
                     try {
                         renderer.dispose();
+                        renderer.forceContextLoss();
                         if (renderer.domElement && renderer.domElement.parentNode) {
                             renderer.domElement.parentNode.removeChild(renderer.domElement);
                         }

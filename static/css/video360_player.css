@@ -36,6 +36,24 @@
     max-height: 100vh !important;
 }
 
+/* Embedded players fit the media rectangle stored in the presentation. */
+.pptx-media-host { width: 100%; height: 100%; min-width: 0; }
+.video360-embedded { min-height: 0; border-radius: 0; box-shadow: none; container-type: inline-size; }
+.video360-embedded .video360-buttons-row { flex-wrap: wrap; gap: 4px; }
+.video360-embedded .video360-buttons-right { margin-left: auto; }
+.video360-embedded .video360-controls-bar { padding: 8px; gap: 5px; }
+.video360-embedded .video360-top-bar { top: 36px; left: 8px; }
+@container (max-width: 450px) {
+    .video360-embedded .video360-volume-slider,
+    .video360-embedded .video360-time-display,
+    .video360-embedded .video360-speed-btn,
+    .video360-embedded .btn-auto-rotate { display: none; }
+    .video360-embedded .video360-buttons-left,
+    .video360-embedded .video360-buttons-right { gap: 2px; }
+    .video360-embedded .video360-badge { font-size: 10px; padding: 4px; }
+    .video360-embedded .video360-hint-overlay { font-size: 11px; max-width: 90%; }
+}
+
 /* Three.js Canvas Container */
 .video360-canvas-container {
     position: absolute;

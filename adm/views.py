@@ -527,6 +527,8 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                                 matched_targets.append(video_rels[attr_val])
 
                 if matched_targets:
+                    props = elem.find('.//{http://schemas.openxmlformats.org/presentationml/2006/main}cNvPr')
+                    title = ' '.join(props.attrib.get(key, '') for key in ('name', 'descr', 'title')) if props is not None else ''
                     xfrm = elem.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}xfrm')
                     off_x, off_y, ext_cx, ext_cy = 0, 0, cx, cy
                     rot_deg = 0
@@ -555,6 +557,7 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                             'ext_cx': ext_cx,
                             'ext_cy': ext_cy,
                             'rotation': rot_deg,
+                            'title': title.strip(),
                             'has_coords': has_coords
                         })
 
@@ -620,6 +623,7 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                         'width_pct': width_pct,
                         'height_pct': height_pct,
                         'rotation': shape.get('rotation', 0),
+                        'title': shape.get('title', ''),
                         'name': os.path.basename(tgt)
                     })
 
@@ -631,6 +635,28 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
             print(f"Error processing slide {i} videos: {e}")
 
     return slide_videos_map
+
+
+def prepare_presentation_source(source_path, previews_dir, cache_key):
+    """Normalize binary PPT to PPTX so its embedded media can be extracted too."""
+    if not source_path.lower().endswith('.ppt'):
+        return source_path
+    normalized = os.path.join(previews_dir, f'presentation_{cache_key}.pptx')
+    if os.path.exists(normalized) and os.path.getsize(normalized) > 0:
+        return normalized
+    soffice = find_libreoffice()
+    if not soffice:
+        return source_path  # The existing endpoint reports installation guidance.
+    with tempfile.TemporaryDirectory(dir=previews_dir) as temp_dir:
+        result = subprocess.run(
+            [soffice, '--headless', '--convert-to', 'pptx', source_path, '--outdir', temp_dir],
+            capture_output=True, text=True, timeout=60,
+        )
+        output = os.path.join(temp_dir, os.path.splitext(os.path.basename(source_path))[0] + '.pptx')
+        if not os.path.exists(output):
+            raise RuntimeError(result.stderr or result.stdout or 'Unable to extract media from PPT presentation')
+        shutil.copyfile(output, normalized)
+    return normalized
 
 @login_required
 def pptx_to_pdf(request):
@@ -666,6 +692,13 @@ def pptx_to_pdf(request):
     cached_pdf_name = f"{base_name}_{cache_key}.pdf"
     cached_pdf_path = os.path.join(previews_dir, cached_pdf_name)
     cached_pdf_url = f"{settings.MEDIA_URL}previews/{cached_pdf_name}"
+
+    try:
+        source_path = prepare_presentation_source(source_path, previews_dir, cache_key)
+    except subprocess.TimeoutExpired:
+        return JsonResponse({'error': 'PPT media conversion timed out'}, status=504)
+    except Exception as exc:
+        return JsonResponse({'error': str(exc)}, status=500)
 
     # Check if cached PDF already exists
     if os.path.exists(cached_pdf_path) and os.path.getsize(cached_pdf_path) > 0:

@@ -776,6 +776,7 @@
 
     <!-- Local 360 Degree Video Player Engine -->
     <script src="{% static 'js/video360_player.js' %}"></script>
+    <script src="{% static 'js/pptx_media.js' %}"></script>
 
     <!-- Local 360 Degree Image (Panorama) Viewer Engine -->
     <script src="{% static 'js/image360_viewer.js' %}"></script>
@@ -1181,6 +1182,7 @@
                     if (pageNum < 1 || pageNum > totalPages || isRendering) return;
                     isRendering = true;
 
+                    PptxMedia.destroy($container[0]);
                     // Pause any videos currently playing on active slide
                     $container.find("video").each(function() {
                         try { this.pause(); } catch(e) {}
@@ -1275,9 +1277,7 @@
                                     </button>
                                     ${matchedLink ? `<button type="button" class="pptx-video-link-btn" title="${matchedLink.slide_jump ? 'Jump to Slide ' + matchedLink.slide_jump : 'Open: ' + matchedLink.url}"><i class="bi bi-link-45deg me-1"></i>Link</button>` : ''}
                                     <div class="pptx-video-inner-box" style="transform: rotate(${currentRot}deg);">
-                                        <video controls playsinline preload="metadata" src="${vid.url}">
-                                            Your browser does not support HTML5 video playback.
-                                        </video>
+                                        <div class="pptx-media-host"></div>
                                     </div>
                                 `;
 
@@ -1306,6 +1306,7 @@
                                 }
 
                                 overlay.appendChild(videoBox);
+                                PptxMedia.mount(innerBox.querySelector(".pptx-media-host"), vid);
                             });
                         }
 
@@ -1463,6 +1464,7 @@
                 let totalSlides = slideFiles.length;
                 let currentSlide = 1;
                 let slideCache = {};
+                let slideLoadToken = 0;
 
                 // Read presentation.xml to obtain slide width & height (in EMUs)
                 let presFile = zip.file("ppt/presentation.xml");
@@ -1774,6 +1776,8 @@
 
                     function loadAndRenderSlide(slideNum) {
                         if (slideNum < 1 || slideNum > totalSlides) return;
+                        let loadToken = ++slideLoadToken;
+                        PptxMedia.destroy($viewport[0]);
                         currentSlide = slideNum;
                         $container.find(".pptx-counter").text(`${currentSlide} / ${totalSlides}`);
                         $container.find(".pptx-prev-btn").prop("disabled", currentSlide === 1);
@@ -1781,6 +1785,7 @@
 
                         if (slideCache[slideNum]) {
                             $viewport.html(slideCache[slideNum]);
+                            PptxMedia.init($viewport[0]);
                             return;
                         }
 
@@ -1816,7 +1821,6 @@
                                 let relsDoc = relsParser.parseFromString(relsXmlText, "text/xml");
                                 let relNodes = relsDoc.getElementsByTagName("*");
                                 let supportedFormats = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
-                                let supportedVideoFormats = ['mp4', 'webm', 'ogv', 'mov', 'm4v'];
 
                                 for (let r = 0; r < relNodes.length; r++) {
                                     let relId = relNodes[r].getAttribute("Id");
@@ -1844,23 +1848,17 @@
                                                 }).catch(function(e) {});
                                                 imagePromises.push(imgP);
                                             }
-                                        } else if (supportedVideoFormats.includes(fileExt)) {
-                                            let mediaFile = zip.file(`ppt/media/${imgName}`);
-                                            if (mediaFile) {
-                                                let vidP = mediaFile.async("blob").then(function(blob) {
-                                                    let videoBlobUrl = URL.createObjectURL(blob);
-                                                    slideVideos.push(videoBlobUrl);
-                                                }).catch(function(e) {});
-                                                imagePromises.push(vidP);
-                                            }
                                         }
                                     }
                                 }
                             }
 
                             let mediaTimeout = new Promise(function(resolve) { setTimeout(resolve, 3000); });
+                            let videoPromise = PptxMedia.extract(zip, xmlDoc, relsXmlText, $container[0], slideW, slideH);
 
-                            Promise.race([Promise.all(imagePromises), mediaTimeout]).then(function() {
+                            return Promise.all([Promise.race([Promise.all(imagePromises), mediaTimeout]), videoPromise]).then(function(results) {
+                                if (loadToken !== slideLoadToken || !$viewport[0].isConnected) return;
+                                slideVideos = results[1];
                                 let spTree = xmlDoc.getElementsByTagName("p:spTree")[0] || xmlDoc.getElementsByTagName("spTree")[0];
                                 let parsed = { shapes: [], connectors: [] };
                                 if (spTree) {
@@ -1875,20 +1873,7 @@
                                 let slideCardHtml = '';
 
                                 if (bgImage && textShapes.length > 1) {
-                                    let overlayItemsHtml = '';
-
-                                    // Render video overlays if present
-                                    if (slideVideos.length > 0) {
-                                        slideVideos.forEach(vid => {
-                                            overlayItemsHtml += `
-                                                <div class="pptx-video-container" style="position: absolute; left: 10%; top: 15%; width: 80%; height: 70%; z-index: 25;">
-                                                    <video controls playsinline preload="metadata" style="width: 100%; height: 100%; object-fit: contain; background: #000;" src="${vid}">
-                                                        Your browser does not support HTML5 video playback.
-                                                    </video>
-                                                </div>
-                                            `;
-                                        });
-                                    }
+                                    let overlayItemsHtml = PptxMedia.markup(slideVideos, true);
 
                                     // Render connector lines
                                     if (parsed.connectors.length > 0) {
@@ -2093,18 +2078,7 @@
                                             '</div>';
                                     }
 
-                                    let videosHtml = '';
-                                    if (slideVideos.length > 0) {
-                                        videosHtml = '<div class="d-flex flex-column align-items-center gap-3 mt-3 mb-2 w-100">' +
-                                            slideVideos.map(vid => `
-                                                <div class="w-100 rounded-3 overflow-hidden shadow-sm border" style="max-width: 640px; background: #000;">
-                                                    <video controls playsinline preload="metadata" style="width: 100%; max-height: 360px; object-fit: contain;" src="${vid}">
-                                                        Your browser does not support HTML5 video playback.
-                                                    </video>
-                                                </div>
-                                            `).join('') +
-                                            '</div>';
-                                    }
+                                    let videosHtml = PptxMedia.markup(slideVideos, false);
 
                                     let actionButtonsHtml = '';
                                     let linkedShapes = parsed.shapes.filter(s => s.slideJump || s.hlinkUrl);
@@ -2134,8 +2108,10 @@
 
                                 slideCache[slideNum] = slideCardHtml;
                                 $viewport.html(slideCardHtml);
+                                PptxMedia.init($viewport[0]);
                             });
                         }).catch(function(err) {
+                            if (loadToken !== slideLoadToken || !$viewport[0].isConnected) return;
                             $viewport.html(`
                                 <div class="bg-white p-4 rounded-4 border text-center">
                                     <p class="text-muted mb-0">Could not parse contents for Slide ${slideNum}.</p>
@@ -2262,6 +2238,7 @@
 
             let $content = $("#filePreviewContent");
             let $spinner = $("#previewLoadingSpinner");
+            PptxMedia.release($content[0]);
             $content.html("");
             $spinner.hide();
 
@@ -2501,6 +2478,7 @@
         }
 
         $('#filePreviewModal').on('hidden.bs.modal', function () {
+            PptxMedia.release(document.getElementById('filePreviewContent'));
             if (window.active360Player && typeof window.active360Player.destroy === 'function') {
                 window.active360Player.destroy();
                 window.active360Player = null;
