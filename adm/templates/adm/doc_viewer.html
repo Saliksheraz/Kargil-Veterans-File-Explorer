@@ -623,7 +623,7 @@
 
                             // Render interactive video players on slide
                             let curImages = (slideImages && (slideImages[currentPage] || slideImages[String(currentPage)])) || [];
-                            let curVideos = ((slideVideos && (slideVideos[currentPage] || slideVideos[String(currentPage)])) || []).concat(curImages);
+                            let curVideos = curImages.concat((slideVideos && (slideVideos[currentPage] || slideVideos[String(currentPage)])) || []);
                             curVideos.forEach(function(vid, vIdx) {
                                 let videoBox = document.createElement("div");
                                 videoBox.className = "pptx-video-container";

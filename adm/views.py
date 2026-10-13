@@ -462,10 +462,10 @@ def extract_pptx_links(pptx_path, orig_to_new_map=None):
 
 def _extract_pptx_media(pptx_path, previews_dir, cache_key, orig_to_new_map=None, media_kind="video"):
     """
-    Extracts embedded and linked videos from a PPTX presentation.
-    Extracts embedded video media files into previews_dir, and determines their
+    Extracts videos or panorama pictures from a PPTX presentation.
+    Extracts embedded media files into previews_dir, and determines their
     slide numbers and coordinate boundaries (left_pct, top_pct, width_pct, height_pct).
-    Returns a dictionary mapping slide number (1-indexed) to a list of video objects.
+    Returns a dictionary mapping slide number (1-indexed) to media descriptors.
     """
     if not os.path.exists(pptx_path) or not pptx_path.lower().endswith('.pptx'):
         return {}
@@ -594,6 +594,8 @@ def _extract_pptx_media(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                 media_url = None
                 if media_kind == 'image':
                     image_target = tgt.replace('../', 'ppt/').lstrip('/')
+                    if not image_target.startswith('ppt/'):
+                        image_target = 'ppt/' + image_target
                     named_panorama = bool(re.search(r'(360|vr360|360vr|_vr|\bvr\b|equirectangular|panoramic|spherical|panorama|photosphere|pano)', tgt + ' ' + shape.get('title', ''), re.I))
                     ratio_panorama = False
                     if image_target in z.namelist():
@@ -622,7 +624,7 @@ def _extract_pptx_media(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                                 with open(dest_file, 'wb') as out_f:
                                     out_f.write(z.read(norm_target))
                             except Exception as e:
-                                print(f"Error extracting video from pptx: {e}")
+                                print(f"Error extracting {media_kind} from pptx: {e}")
 
                         if os.path.exists(dest_file):
                             media_url = f"{settings.MEDIA_URL}previews/{clean_fname}"
@@ -633,8 +635,9 @@ def _extract_pptx_media(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                     width_pct = round((shape['ext_cx'] / cx) * 100, 3)
                     height_pct = round((shape['ext_cy'] / cy) * 100, 3)
 
-                    width_pct = max(10, min(100, width_pct))
-                    height_pct = max(10, min(100, height_pct))
+                    min_size = 0 if media_kind == 'image' else 10
+                    width_pct = max(min_size, min(100, width_pct))
+                    height_pct = max(min_size, min(100, height_pct))
                     left_pct = max(0, min(100 - width_pct, left_pct))
                     top_pct = max(0, min(100 - height_pct, top_pct))
 
@@ -655,8 +658,9 @@ def _extract_pptx_media(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                 slide_media_map[target_page_idx] = slide_media
 
         except Exception as e:
-            print(f"Error processing slide {i} videos: {e}")
+            print(f"Error processing slide {i} {media_kind}: {e}")
 
+    z.close()
     return slide_media_map
 
 

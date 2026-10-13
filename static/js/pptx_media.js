@@ -99,12 +99,13 @@
             var xfrm = nodes.find(function (el) { return el.localName === 'xfrm'; });
             var off = xfrm && Array.from(xfrm.children).find(function (el) { return el.localName === 'off'; });
             var ext = xfrm && Array.from(xfrm.children).find(function (el) { return el.localName === 'ext'; });
+            var background = shape.localName === 'bg';
             targets.forEach(function (target) {
                 descriptors.push({ target: target, title: props ? [props.getAttribute('name'), props.getAttribute('descr'), props.getAttribute('title')].filter(Boolean).join(' ') : '',
-                    left_pct: off ? Number(off.getAttribute('x')) / slideW * 100 : 10,
-                    top_pct: off ? Number(off.getAttribute('y')) / slideH * 100 : 15,
-                    width_pct: ext ? Number(ext.getAttribute('cx')) / slideW * 100 : 80,
-                    height_pct: ext ? Number(ext.getAttribute('cy')) / slideH * 100 : 70,
+                    left_pct: off ? Number(off.getAttribute('x')) / slideW * 100 : background ? 0 : 10,
+                    top_pct: off ? Number(off.getAttribute('y')) / slideH * 100 : background ? 0 : 15,
+                    width_pct: ext ? Number(ext.getAttribute('cx')) / slideW * 100 : background ? 100 : 80,
+                    height_pct: ext ? Number(ext.getAttribute('cy')) / slideH * 100 : background ? 100 : 70,
                     rotation: xfrm ? Number(xfrm.getAttribute('rot') || 0) / 60000 : 0 });
             });
         });
