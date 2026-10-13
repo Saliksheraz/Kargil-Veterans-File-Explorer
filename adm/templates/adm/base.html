@@ -1109,7 +1109,7 @@
             pdfjsLib.GlobalWorkerOptions.workerSrc = "{% static 'vendor/pdfjs/pdf.worker.min.js' %}";
         }
 
-        function renderPdfDocument(url, cleanName, $container, $spinner, ext, slideLinks, slideVideos) {
+        function renderPdfDocument(url, cleanName, $container, $spinner, ext, slideLinks, slideVideos, slideImages) {
             $spinner.show();
             if (!window.pdfjsLib) {
                 renderPdfFallback(url, cleanName, $container, $spinner, ext);
@@ -1243,7 +1243,8 @@
                             });
 
                             // Render interactive video players on slide
-                            let curVideos = (slideVideos && (slideVideos[currentPage] || slideVideos[String(currentPage)])) || [];
+                            let curImages = (slideImages && (slideImages[currentPage] || slideImages[String(currentPage)])) || [];
+                            let curVideos = ((slideVideos && (slideVideos[currentPage] || slideVideos[String(currentPage)])) || []).concat(curImages);
                             curVideos.forEach(function(vid, vIdx) {
                                 let videoBox = document.createElement("div");
                                 videoBox.className = "pptx-video-container";
@@ -1272,7 +1273,7 @@
                                 });
 
                                 videoBox.innerHTML = `
-                                    <button type="button" class="pptx-video-rotate-btn" title="Rotate Video 90° Clockwise">
+                                    <button type="button" class="pptx-video-rotate-btn" title="Rotate Media 90° Clockwise">
                                         <i class="bi bi-arrow-clockwise me-1"></i>Rotate
                                     </button>
                                     ${matchedLink ? `<button type="button" class="pptx-video-link-btn" title="${matchedLink.slide_jump ? 'Jump to Slide ' + matchedLink.slide_jump : 'Open: ' + matchedLink.url}"><i class="bi bi-link-45deg me-1"></i>Link</button>` : ''}
@@ -1812,6 +1813,7 @@
 
                             let imagePromises = [];
                             let slideImages = [];
+                            let imageNames = {};
                             let slideVideos = [];
                             let relMap = {};
                             let relsDict = {};
@@ -1844,6 +1846,7 @@
                                                 let imgP = mediaFile.async("base64").then(function(b64) {
                                                     let dataUrl = `data:${mime};base64,${b64}`;
                                                     slideImages.push(dataUrl);
+                                                    imageNames[dataUrl] = imgName;
                                                     if (relId) relMap[relId] = dataUrl;
                                                 }).catch(function(e) {});
                                                 imagePromises.push(imgP);
@@ -1855,10 +1858,14 @@
 
                             let mediaTimeout = new Promise(function(resolve) { setTimeout(resolve, 3000); });
                             let videoPromise = PptxMedia.extract(zip, xmlDoc, relsXmlText, $container[0], slideW, slideH);
+                            let imagePromise = PptxMedia.extract(zip, xmlDoc, relsXmlText, $container[0], slideW, slideH, 'image');
 
-                            return Promise.all([Promise.race([Promise.all(imagePromises), mediaTimeout]), videoPromise]).then(function(results) {
+                            return Promise.all([Promise.race([Promise.all(imagePromises), mediaTimeout]), videoPromise, imagePromise]).then(function(results) {
                                 if (loadToken !== slideLoadToken || !$viewport[0].isConnected) return;
                                 slideVideos = results[1];
+                                let panoramaImages = results[2];
+                                let panoramaNames = new Set(panoramaImages.map(image => image.name));
+                                slideImages = slideImages.filter(url => !panoramaNames.has(imageNames[url]));
                                 let spTree = xmlDoc.getElementsByTagName("p:spTree")[0] || xmlDoc.getElementsByTagName("spTree")[0];
                                 let parsed = { shapes: [], connectors: [] };
                                 if (spTree) {
@@ -1873,7 +1880,7 @@
                                 let slideCardHtml = '';
 
                                 if (bgImage && textShapes.length > 1) {
-                                    let overlayItemsHtml = PptxMedia.markup(slideVideos, true);
+                                    let overlayItemsHtml = PptxMedia.markup(panoramaImages.concat(slideVideos), true);
 
                                     // Render connector lines
                                     if (parsed.connectors.length > 0) {
@@ -2078,7 +2085,7 @@
                                             '</div>';
                                     }
 
-                                    let videosHtml = PptxMedia.markup(slideVideos, false);
+                                    let videosHtml = PptxMedia.markup(panoramaImages.concat(slideVideos), false);
 
                                     let actionButtonsHtml = '';
                                     let linkedShapes = parsed.shapes.filter(s => s.slideJump || s.hlinkUrl);
@@ -2254,6 +2261,7 @@
                 if (window.init360ImageViewer) {
                     window.active360ImageViewer = window.init360ImageViewer(targetContainer, url, {
                         title: cleanName,
+                        autoDetect360: true,
                         is360Default: is360Image(cleanName)
                     });
                 } else {
@@ -2325,7 +2333,7 @@
                             let pdfViewerUrl = `/view-doc/?url=${encodeURIComponent(url)}&name=${encodeURIComponent(cleanName)}`;
                             $("#previewExpandBtn").attr("href", pdfViewerUrl);
                             $("#headerExpandBtn").attr("href", pdfViewerUrl);
-                            renderPdfDocument(resp.pdf_url, cleanName, $content, $spinner, 'PDF', resp.links || null, resp.videos || null);
+                            renderPdfDocument(resp.pdf_url, cleanName, $content, $spinner, 'PDF', resp.links || null, resp.videos || null, resp.images || null);
                         } else {
                             throw new Error(resp.error || "Server PDF conversion failed");
                         }

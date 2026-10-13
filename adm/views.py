@@ -460,7 +460,7 @@ def extract_pptx_links(pptx_path, orig_to_new_map=None):
 
     return slide_links_map
 
-def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None):
+def _extract_pptx_media(pptx_path, previews_dir, cache_key, orig_to_new_map=None, media_kind="video"):
     """
     Extracts embedded and linked videos from a PPTX presentation.
     Extracts embedded video media files into previews_dir, and determines their
@@ -485,15 +485,17 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
     except Exception:
         pass
 
-    video_exts = ('.mp4', '.m4v', '.webm', '.ogv', '.mov', '.avi', '.wmv', '.mkv', '.mpg', '.mpeg', '.3gp')
-    slide_videos_map = {}
+    media_exts = ('.mp4', '.m4v', '.webm', '.ogv', '.mov', '.avi', '.wmv', '.mkv', '.mpg', '.mpeg', '.3gp')
+    if media_kind == 'image':
+        media_exts = ('.jpg', '.jpeg', '.png', '.webp', '.bmp')
+    slide_media_map = {}
 
     for i in range(1, 300):
         xml_name = f'ppt/slides/slide{i}.xml'
         if xml_name not in z.namelist():
             break
         rels_name = f'ppt/slides/_rels/slide{i}.xml.rels'
-        video_rels = {}
+        media_rels = {}
         if rels_name in z.namelist():
             try:
                 rels_tree = ET.fromstring(z.read(rels_name))
@@ -501,12 +503,12 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                     r_id = r.attrib.get('Id', '')
                     target = r.attrib.get('Target', '')
                     r_type = r.attrib.get('Type', '').lower()
-                    if ('video' in r_type or 'media' in r_type) or target.lower().endswith(video_exts):
-                        video_rels[r_id] = target
+                    if (media_kind == 'video' and ('video' in r_type or 'media' in r_type)) or target.lower().endswith(media_exts):
+                        media_rels[r_id] = target
             except Exception:
                 pass
 
-        if not video_rels:
+        if not media_rels:
             continue
 
         try:
@@ -514,17 +516,19 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
             found_shapes = []
 
             def process_candidate_shape(elem):
+                if media_kind == 'image' and any(node.tag.split('}').pop() in ('videoFile', 'media', 'quickTimeFile') for node in elem.iter()):
+                    return  # Video poster frames must remain part of the video player.
                 matched_targets = []
                 for vf in elem.iter():
                     tag_local = vf.tag.split('}').pop()
                     if tag_local in ('videoFile', 'media', 'quickTimeFile'):
                         for attr_name, attr_val in vf.attrib.items():
-                            if attr_val in video_rels and video_rels[attr_val] not in matched_targets:
-                                matched_targets.append(video_rels[attr_val])
+                            if attr_val in media_rels and media_rels[attr_val] not in matched_targets:
+                                matched_targets.append(media_rels[attr_val])
                     for attr_name, attr_val in vf.attrib.items():
                         if attr_name.endswith('id') or attr_name.endswith('link') or attr_name.endswith('embed'):
-                            if attr_val in video_rels and video_rels[attr_val] not in matched_targets:
-                                matched_targets.append(video_rels[attr_val])
+                            if attr_val in media_rels and media_rels[attr_val] not in matched_targets:
+                                matched_targets.append(media_rels[attr_val])
 
                 if matched_targets:
                     props = elem.find('.//{http://schemas.openxmlformats.org/presentationml/2006/main}cNvPr')
@@ -568,8 +572,12 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
             for gf in slide_tree.iter('{http://schemas.openxmlformats.org/presentationml/2006/main}graphicFrame'):
                 process_candidate_shape(gf)
 
-            if not found_shapes:
-                for r_id, tgt in video_rels.items():
+            if media_kind == 'image':
+                for bg in slide_tree.iter('{http://schemas.openxmlformats.org/presentationml/2006/main}bg'):
+                    process_candidate_shape(bg)
+
+            if not found_shapes and media_kind == 'video':
+                for r_id, tgt in media_rels.items():
                     found_shapes.append({
                         'target': tgt,
                         'off_x': int(cx * 0.1),
@@ -580,20 +588,34 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                         'has_coords': True
                     })
 
-            slide_videos = []
+            slide_media = []
             for shape in found_shapes:
                 tgt = shape['target']
-                video_url = None
+                media_url = None
+                if media_kind == 'image':
+                    image_target = tgt.replace('../', 'ppt/').lstrip('/')
+                    named_panorama = bool(re.search(r'(360|vr360|360vr|_vr|\bvr\b|equirectangular|panoramic|spherical|panorama|photosphere|pano)', tgt + ' ' + shape.get('title', ''), re.I))
+                    ratio_panorama = False
+                    if image_target in z.namelist():
+                        try:
+                            from PIL import Image
+                            with z.open(image_target) as image_file, Image.open(image_file) as image:
+                                width, height = image.size
+                                ratio_panorama = height > 0 and abs(width / height - 2) < 0.05
+                        except (OSError, ValueError):
+                            pass
+                    if not named_panorama and not ratio_panorama:
+                        continue
 
                 if tgt.startswith('http://') or tgt.startswith('https://'):
-                    video_url = tgt
+                    media_url = tgt
                 else:
                     norm_target = tgt.replace('../', 'ppt/').lstrip('/')
                     if not norm_target.startswith('ppt/'):
                         norm_target = 'ppt/' + norm_target
 
                     if norm_target in z.namelist():
-                        clean_fname = f"video_{cache_key}_{os.path.basename(norm_target)}"
+                        clean_fname = f"{media_kind}_{cache_key}_{os.path.basename(norm_target)}"
                         dest_file = os.path.join(previews_dir, clean_fname)
                         if not os.path.exists(dest_file):
                             try:
@@ -603,9 +625,9 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                                 print(f"Error extracting video from pptx: {e}")
 
                         if os.path.exists(dest_file):
-                            video_url = f"{settings.MEDIA_URL}previews/{clean_fname}"
+                            media_url = f"{settings.MEDIA_URL}previews/{clean_fname}"
 
-                if video_url:
+                if media_url:
                     left_pct = round((shape['off_x'] / cx) * 100, 3)
                     top_pct = round((shape['off_y'] / cy) * 100, 3)
                     width_pct = round((shape['ext_cx'] / cx) * 100, 3)
@@ -616,25 +638,35 @@ def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None
                     left_pct = max(0, min(100 - width_pct, left_pct))
                     top_pct = max(0, min(100 - height_pct, top_pct))
 
-                    slide_videos.append({
-                        'url': video_url,
+                    slide_media.append({
+                        'url': media_url,
                         'left_pct': left_pct,
                         'top_pct': top_pct,
                         'width_pct': width_pct,
                         'height_pct': height_pct,
                         'rotation': shape.get('rotation', 0),
                         'title': shape.get('title', ''),
-                        'name': os.path.basename(tgt)
+                        'name': os.path.basename(tgt),
+                        'kind': media_kind
                     })
 
-            if slide_videos:
+            if slide_media:
                 target_page_idx = orig_to_new_map.get(i, i) if orig_to_new_map else i
-                slide_videos_map[target_page_idx] = slide_videos
+                slide_media_map[target_page_idx] = slide_media
 
         except Exception as e:
             print(f"Error processing slide {i} videos: {e}")
 
-    return slide_videos_map
+    return slide_media_map
+
+
+def extract_pptx_videos(pptx_path, previews_dir, cache_key, orig_to_new_map=None):
+    return _extract_pptx_media(pptx_path, previews_dir, cache_key, orig_to_new_map, 'video')
+
+
+def extract_pptx_images(pptx_path, previews_dir, cache_key, orig_to_new_map=None):
+    """Extract panorama pictures using source dimensions and shape/filename hints."""
+    return _extract_pptx_media(pptx_path, previews_dir, cache_key, orig_to_new_map, 'image')
 
 
 def prepare_presentation_source(source_path, previews_dir, cache_key):
@@ -707,12 +739,14 @@ def pptx_to_pdf(request):
             _, orig_to_new_map, _, _ = get_pptx_animation_map(source_path)
         slide_links = extract_pptx_links(source_path, orig_to_new_map)
         slide_videos = extract_pptx_videos(source_path, previews_dir, cache_key, orig_to_new_map)
+        slide_images = extract_pptx_images(source_path, previews_dir, cache_key, orig_to_new_map)
         return JsonResponse({
             'success': True,
             'pdf_url': cached_pdf_url,
             'cached': True,
             'links': slide_links,
             'videos': slide_videos,
+            'images': slide_images,
             'source_url': file_url
         })
 
@@ -768,12 +802,14 @@ def pptx_to_pdf(request):
             os.rename(default_out_pdf, cached_pdf_path)
 
             slide_videos = extract_pptx_videos(source_path, previews_dir, cache_key, orig_to_new_map)
+            slide_images = extract_pptx_images(source_path, previews_dir, cache_key, orig_to_new_map)
             return JsonResponse({
                 'success': True,
                 'pdf_url': cached_pdf_url,
                 'cached': False,
                 'links': slide_links,
                 'videos': slide_videos,
+                'images': slide_images,
                 'source_url': file_url
             })
         else:

@@ -3,6 +3,7 @@ import hashlib
 import tempfile
 import zipfile
 from pathlib import Path
+from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import patch
 from django.test import TestCase, Client
@@ -170,3 +171,46 @@ class EmbeddedPowerPointVideoTest(SimpleTestCase):
             self.assertEqual(run.call_count, 1)
             self.assertEqual(run.call_args.args[0][3], 'pptx')
             self.assertEqual(len(extract_pptx_videos(normalized, str(self.previews), 'legacy')[1]), 1)
+
+
+class EmbeddedPowerPointImageTest(SimpleTestCase):
+    def setUp(self):
+        EmbeddedPowerPointVideoTest.setUp(self)
+        from PIL import Image
+        with zipfile.ZipFile(self.source) as deck:
+            entries = {name: deck.read(name) for name in deck.namelist()}
+        shapes = []
+        rels = []
+        for index, size, title in [(1, (400, 200), 'Picture 1'), (2, (320, 180), 'Ordinary photo'), (3, (320, 180), 'Hilltop 360 panorama'), (4, (400, 200), 'Video poster')]:
+            data = BytesIO()
+            Image.new('RGB', size, 'green').save(data, format='PNG')
+            entries[f'ppt/media/image{index}.png'] = data.getvalue()
+            video = '<p:nvPr><a:videoFile r:link="rId1"/></p:nvPr>' if index == 4 else ''
+            shapes.append(f'<p:pic><p:nvPicPr><p:cNvPr id="{index+10}" name="{title}"/>{video}</p:nvPicPr><p:blipFill><a:blip r:embed="img{index}"/></p:blipFill><p:spPr><a:xfrm rot="5400000"><a:off x="100" y="200"/><a:ext cx="500" cy="400"/></a:xfrm></p:spPr></p:pic>')
+            rels.append(f'<Relationship Id="img{index}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image{index}.png"/>')
+        entries['ppt/slides/slide1.xml'] = entries['ppt/slides/slide1.xml'].decode().replace('</p:spTree>', ''.join(shapes) + '</p:spTree>').encode()
+        entries['ppt/slides/_rels/slide1.xml.rels'] = entries['ppt/slides/_rels/slide1.xml.rels'].decode().replace('</Relationships>', ''.join(rels) + '</Relationships>').encode()
+        with zipfile.ZipFile(self.source, 'w') as deck:
+            for name, data in entries.items():
+                deck.writestr(name, data)
+
+    def test_renamed_panorama_and_shape_title_are_detected_without_ordinary_photos_or_video_posters(self):
+        from adm.views import extract_pptx_images
+        photos = extract_pptx_images(str(self.source), str(self.previews), 'photos', {1: 3})
+        self.assertEqual(list(photos), [3])
+        self.assertEqual([photo['name'] for photo in photos[3]], ['image1.png', 'image3.png'])
+        self.assertEqual(photos[3][0]['kind'], 'image')
+        self.assertEqual([photos[3][0][key] for key in ('left_pct', 'top_pct', 'width_pct', 'height_pct', 'rotation')], [10, 20, 50, 40, 90])
+        self.assertTrue((self.previews / 'image_photos_image1.png').exists())
+
+    def test_cached_pdf_returns_photo_overlays_with_video_overlays(self):
+        from adm.views import pptx_to_pdf
+        import json
+        key = hashlib.md5(f'{self.source}_{self.source.stat().st_mtime}'.encode()).hexdigest()
+        (self.previews / f'orientation_{key}.pdf').write_bytes(b'cached PDF')
+        request = RequestFactory().get('/pptx-to-pdf/', {'url': '/media/orientation.pptx'})
+        request.user = SimpleNamespace(is_authenticated=True)
+        with override_settings(MEDIA_ROOT=self.temp.name):
+            payload = json.loads(pptx_to_pdf(request).content)
+        self.assertEqual(len(payload['images']['1']), 2)
+        self.assertEqual(len(payload['videos']['1']), 2)

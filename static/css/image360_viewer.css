@@ -36,6 +36,17 @@
     max-height: 100vh !important;
 }
 
+.image360-embedded { min-height: 0; border-radius: 0; box-shadow: none; container-type: inline-size; }
+.image360-embedded .image360-controls-bar { padding: 8px; gap: 4px; flex-wrap: wrap; }
+.image360-embedded .image360-top-bar { top: 36px; left: 8px; }
+@container (max-width: 450px) {
+    .image360-embedded .btn-auto-rotate { display: none; }
+    .image360-embedded .image360-buttons-left,
+    .image360-embedded .image360-buttons-right { gap: 2px; }
+    .image360-embedded .image360-badge { font-size: 10px; padding: 4px; }
+    .image360-embedded .image360-hint-overlay { font-size: 11px; max-width: 90%; }
+}
+
 /* Three.js Canvas Container */
 .image360-canvas-container {
     position: absolute;

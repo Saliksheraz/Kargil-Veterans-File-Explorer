@@ -22,6 +22,7 @@
         options = options || {};
         var title = options.title || 'Image Viewer';
         var is360Mode = (typeof options.is360Default === 'boolean') ? options.is360Default : is360Image(title);
+        var modeSelectedByUser = false;
 
         // Ensure container is clean
         container.innerHTML = '';
@@ -29,12 +30,13 @@
         // Build Viewer HTML structure
         var wrapper = document.createElement('div');
         wrapper.className = 'image360-wrapper';
+        if (options.embedded) wrapper.classList.add('image360-embedded');
         wrapper.tabIndex = 0; // for keyboard focus
 
         wrapper.innerHTML = [
             '<div class="image360-canvas-container"></div>',
             '<div class="image360-flat-container" style="display: none;">',
-            '    <img src="' + imageUrl + '" alt="' + title + '">',
+            '    <img alt="">',
             '</div>',
             '<div class="image360-loading">',
             '    <div class="spinner-border text-warning" role="status"></div>',
@@ -92,6 +94,8 @@
         var canvasContainer = wrapper.querySelector('.image360-canvas-container');
         var flatContainer = wrapper.querySelector('.image360-flat-container');
         var flatImg = flatContainer.querySelector('img');
+        flatImg.src = imageUrl;
+        flatImg.alt = title;
         var loadingEl = wrapper.querySelector('.image360-loading');
         var topBar = wrapper.querySelector('.image360-top-bar');
         var badgeText = wrapper.querySelector('.badge-text');
@@ -184,7 +188,7 @@
             loader.load(
                 imageUrl,
                 function (loadedTexture) {
-                    if (isDestroyed) return;
+                    if (isDestroyed) { loadedTexture.dispose(); return; }
                     texture = loadedTexture;
                     texture.minFilter = THREE.LinearFilter;
                     texture.magFilter = THREE.LinearFilter;
@@ -198,7 +202,8 @@
                     // Auto-detect 2:1 aspect ratio equirectangular panoramas
                     if (loadedTexture.image) {
                         var imgRatio = loadedTexture.image.width / loadedTexture.image.height;
-                        if (imgRatio >= 1.8 && imgRatio <= 2.2 && options.is360Default === undefined) {
+                        if (Math.abs(imgRatio - 2) < 0.05 && !modeSelectedByUser &&
+                                (options.autoDetect360 || options.is360Default === undefined)) {
                             setMode(true);
                         }
                     }
@@ -207,6 +212,7 @@
                 },
                 undefined,
                 function (err) {
+                    if (isDestroyed) return;
                     console.error('[Image360] Error loading image texture:', err);
                     if (loadingEl) loadingEl.style.display = 'none';
                     setMode(false);
@@ -285,6 +291,7 @@
             var duration = 400; // ms
 
             function step(now) {
+                if (isDestroyed) return;
                 var elapsed = now - startTime;
                 var progress = Math.min(elapsed / duration, 1);
                 var ease = 0.5 - Math.cos(progress * Math.PI) / 2; // easeInOutQuad
@@ -314,6 +321,7 @@
             }
 
             isUserInteracting = true;
+            wrapper.focus({ preventScroll: true });
             pointerStartX = event.clientX;
             pointerStartY = event.clientY;
 
@@ -427,7 +435,13 @@
                 }
 
                 if (!renderer) {
-                    initThreeJS();
+                    try {
+                        initThreeJS();
+                    } catch (err) {
+                        console.warn('[Image360] WebGL unavailable; using flat image.', err);
+                        loadingEl.style.display = 'none';
+                        setMode(false);
+                    }
                 } else {
                     onWindowResize();
                 }
@@ -452,10 +466,12 @@
         // Button Listeners
         btnMode360.addEventListener('click', function (e) {
             e.stopPropagation();
+            modeSelectedByUser = true;
             setMode(true);
         });
         btnModeFlat.addEventListener('click', function (e) {
             e.stopPropagation();
+            modeSelectedByUser = true;
             setMode(false);
         });
 
@@ -522,15 +538,16 @@
             }
         });
 
-        document.addEventListener('fullscreenchange', function () {
-            var isFull = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+        function onFullscreenChange() {
+            var isFull = (document.fullscreenElement || document.webkitFullscreenElement) === wrapper;
             if (isFull) {
                 btnFullscreen.innerHTML = '<i class="bi bi-fullscreen-exit"></i>';
             } else {
                 btnFullscreen.innerHTML = '<i class="bi bi-arrows-fullscreen"></i>';
             }
             setTimeout(onWindowResize, 150);
-        });
+        }
+        document.addEventListener('fullscreenchange', onFullscreenChange);
 
         // Keyboard Controls
         wrapper.addEventListener('keydown', function (e) {
@@ -586,6 +603,7 @@
                     }
                     break;
             }
+            if (e.defaultPrevented) e.stopPropagation();
         });
 
         // Canvas Interaction Events strictly on canvasContainer
@@ -601,6 +619,8 @@
         wrapper.addEventListener('touchstart', showControls, { passive: true });
 
         window.addEventListener('resize', onWindowResize);
+        var resizeObserver = window.ResizeObserver ? new ResizeObserver(onWindowResize) : null;
+        if (resizeObserver) resizeObserver.observe(wrapper);
 
         // Auto-fade hint overlay after 4.5 seconds
         setTimeout(function () {
@@ -611,10 +631,12 @@
         }, 4500);
 
         // Initialize 3D Engine & Mode
-        initThreeJS();
-        if (!is360Mode) {
-            setMode(false);
+        try { initThreeJS(); } catch (err) {
+            console.warn('[Image360] WebGL unavailable; using flat image.', err);
+            is360Mode = false;
+            loadingEl.style.display = 'none';
         }
+        setMode(is360Mode);
 
         // Return controller object with clean lifecycle methods
         var viewerInstance = {
@@ -622,7 +644,11 @@
             setMode: setMode,
             resetView: resetView,
             destroy: function () {
+                if (isDestroyed) return;
                 isDestroyed = true;
+                clearTimeout(controlsTimeout);
+                document.removeEventListener('fullscreenchange', onFullscreenChange);
+                if (resizeObserver) resizeObserver.disconnect();
                 if (animationFrameId) {
                     cancelAnimationFrame(animationFrameId);
                     animationFrameId = null;
@@ -632,6 +658,7 @@
                 if (renderer) {
                     try {
                         renderer.dispose();
+                        renderer.forceContextLoss();
                         if (renderer.domElement && renderer.domElement.parentNode) {
                             renderer.domElement.parentNode.removeChild(renderer.domElement);
                         }
